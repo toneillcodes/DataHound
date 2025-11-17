@@ -1,0 +1,3 @@
+pandas
+requests
+jsonpath-ng
