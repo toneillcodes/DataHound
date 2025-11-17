@@ -167,13 +167,14 @@ TRANSFORMERS = {
 def main():
     parser = argparse.ArgumentParser(description="A versatile data pipeline engine that ingests information from diverse external sources and transforms the extracted node and edge data into the BloodHound OpenGraph format.")
     parser.add_argument("base_kind", type=str, help="The base source_kind value to use for the graph.")
-    parser.add_argument("file_path", type=str, help="The path for the transformation definitions file.") 
+    parser.add_argument("input_file", type=str, help="The path to the transformation definitions file.")
+    parser.add_argument("output_file", type=str, help="The path for the JSON output.") 
     
     args = parser.parse_args()
 
     try:
-        config_list = read_config_file(args.file_path)
-        print(f"[*] Successfully read config from: {args.file_path}")
+        config_list = read_config_file(args.input_file)
+        print(f"[*] Successfully read config from: {args.input_file}")
     except (FileNotFoundError, json.JSONDecodeError) as e:
         print(e)
         sys.exit(1)
@@ -261,9 +262,21 @@ def main():
         elif source_type != "url":
             print(f"[!] Source type '{source_type}' is not yet implemented. Skipping item {item_name}.")
             
-    print("\n[*] Processing complete. Dumping graph to stdout:")
-    json.dump(graph_structure, sys.stdout, indent=4)
-    print("\n[*] Done.")
+    # todo: add output controls
+    #print("[*] Processing complete. Dumping graph to stdout:")
+    #json.dump(graph_structure, sys.stdout, indent=4)
+
+    output_file = args.output_file
+    if output_file:
+        print(f"[*] Writing graph to output file: {output_file}")
+        try:       
+            with open(output_file, 'w') as f:
+                json.dump(graph_structure, f, indent=4)            
+            print(f"[>] Wrote graph to {output_file}")
+        except:
+            print("[ERROR] Failed to write output file")
+
+    print("[*] Done.")
 
 if __name__ == '__main__':
     main()
