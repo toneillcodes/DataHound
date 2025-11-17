@@ -1,0 +1,33 @@
+{
+  "custom_types": {
+    "BHUser": {
+      "icon": {
+        "type": "font-awesome",
+        "name": "user",
+        "color": "#7092BE"
+      }
+    },
+    "BHRole": {
+      "icon": {
+        "type": "font-awesome",
+        "name": "people-group",
+        "color": "#F7FF03"
+      }
+    },
+    "BHAuthority": {
+      "icon": {
+        "type": "font-awesome",
+        "name": "gear",
+        "color": "#ffb303"
+      }
+    }
+  },
+  "metadata": {
+    "version": "1.0",
+    "description": "BloodHound Security model for BloodHound",
+    "author": "Tom O'Neill",
+    "created": "202511",
+    "node_prefix": "BH",
+    "edge_prefix": "BH"
+  }
+}
