@@ -3,7 +3,7 @@ A versatile data pipeline engine that ingests information from diverse external 
 ## Usage
 ```
 $ python DataHound.py
-usage: DataHound.py [-h] base_kind file_path output_file
+usage: DataHound.py [-h] base_kind input_file output_file
 DataHound.py: error: the following arguments are required: base_kind, file_path, output_file
 $
 ```
