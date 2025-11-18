@@ -9,3 +9,9 @@ $
 ```
 ## Examples
 - [BloodHound Collector](examples/bloodhound/README.md)
+## Todo
+* Debug or verbose messages with logging
+* Support for encrypted secrets
+* Basic authentication web support
+* File based input using CSV or JSON formats
+* Robust error handling
