@@ -1,0 +1,834 @@
+{
+    "metadata": {
+        "source_kind": "BHCE"
+    },
+    "graph": {
+        "nodes": [
+            {
+                "id": "0f916532-08f7-47f4-bf1b-37b2317cce1b",
+                "kinds": [
+                    "BHUser",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": "0f916532-08f7-47f4-bf1b-37b2317cce1b",
+                    "username": "admin",
+                    "last": "2025-11-16T11:24:14.401684Z"
+                }
+            },
+            {
+                "id": "Administrator",
+                "kinds": [
+                    "BHRole",
+                    "BHCE"
+                ],
+                "properties": {
+                    "name": "Administrator",
+                    "description": "Can manage users, clients, and application configuration"
+                }
+            },
+            {
+                "id": "User",
+                "kinds": [
+                    "BHRole",
+                    "BHCE"
+                ],
+                "properties": {
+                    "name": "User",
+                    "description": "Can read data, modify asset group memberships"
+                }
+            },
+            {
+                "id": "Read-Only",
+                "kinds": [
+                    "BHRole",
+                    "BHCE"
+                ],
+                "properties": {
+                    "name": "Read-Only",
+                    "description": "Used for integrations"
+                }
+            },
+            {
+                "id": "Upload-Only",
+                "kinds": [
+                    "BHRole",
+                    "BHCE"
+                ],
+                "properties": {
+                    "name": "Upload-Only",
+                    "description": "Used for data collection clients, can post data but cannot read data"
+                }
+            },
+            {
+                "id": "Power User",
+                "kinds": [
+                    "BHRole",
+                    "BHCE"
+                ],
+                "properties": {
+                    "name": "Power User",
+                    "description": "Can upload data, manage clients, and perform any action a User can"
+                }
+            },
+            {
+                "id": "ReadAppConfig",
+                "kinds": [
+                    "BHPermission",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": 1,
+                    "name": "ReadAppConfig",
+                    "created_at": "2025-10-01T02:25:46.511867Z"
+                }
+            },
+            {
+                "id": "WriteAppConfig",
+                "kinds": [
+                    "BHPermission",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": 2,
+                    "name": "WriteAppConfig",
+                    "created_at": "2025-10-01T02:25:46.511867Z"
+                }
+            },
+            {
+                "id": "GenerateReport",
+                "kinds": [
+                    "BHPermission",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": 3,
+                    "name": "GenerateReport",
+                    "created_at": "2025-10-01T02:25:46.511867Z"
+                }
+            },
+            {
+                "id": "ManageRisks",
+                "kinds": [
+                    "BHPermission",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": 4,
+                    "name": "ManageRisks",
+                    "created_at": "2025-10-01T02:25:46.511867Z"
+                }
+            },
+            {
+                "id": "CreateToken",
+                "kinds": [
+                    "BHPermission",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": 5,
+                    "name": "CreateToken",
+                    "created_at": "2025-10-01T02:25:46.511867Z"
+                }
+            },
+            {
+                "id": "ManageAppConfig",
+                "kinds": [
+                    "BHPermission",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": 6,
+                    "name": "ManageAppConfig",
+                    "created_at": "2025-10-01T02:25:46.511867Z"
+                }
+            },
+            {
+                "id": "ManageProviders",
+                "kinds": [
+                    "BHPermission",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": 7,
+                    "name": "ManageProviders",
+                    "created_at": "2025-10-01T02:25:46.511867Z"
+                }
+            },
+            {
+                "id": "ManageSelf",
+                "kinds": [
+                    "BHPermission",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": 8,
+                    "name": "ManageSelf",
+                    "created_at": "2025-10-01T02:25:46.511867Z"
+                }
+            },
+            {
+                "id": "ManageUsers",
+                "kinds": [
+                    "BHPermission",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": 9,
+                    "name": "ManageUsers",
+                    "created_at": "2025-10-01T02:25:46.511867Z"
+                }
+            },
+            {
+                "id": "Manage",
+                "kinds": [
+                    "BHPermission",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": 10,
+                    "name": "Manage",
+                    "created_at": "2025-10-01T02:25:46.511867Z"
+                }
+            },
+            {
+                "id": "Tasking",
+                "kinds": [
+                    "BHPermission",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": 11,
+                    "name": "Tasking",
+                    "created_at": "2025-10-01T02:25:46.511867Z"
+                }
+            },
+            {
+                "id": "ManageJobs",
+                "kinds": [
+                    "BHPermission",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": 12,
+                    "name": "ManageJobs",
+                    "created_at": "2025-10-01T02:25:46.511867Z"
+                }
+            },
+            {
+                "id": "Read",
+                "kinds": [
+                    "BHPermission",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": 13,
+                    "name": "Read",
+                    "created_at": "2025-10-01T02:25:46.511867Z"
+                }
+            },
+            {
+                "id": "Write",
+                "kinds": [
+                    "BHPermission",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": 14,
+                    "name": "Write",
+                    "created_at": "2025-10-01T02:25:46.511867Z"
+                }
+            },
+            {
+                "id": "Read",
+                "kinds": [
+                    "BHPermission",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": 15,
+                    "name": "Read",
+                    "created_at": "2025-10-01T02:25:46.511867Z"
+                }
+            },
+            {
+                "id": "Write",
+                "kinds": [
+                    "BHPermission",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": 16,
+                    "name": "Write",
+                    "created_at": "2025-10-01T02:25:46.511867Z"
+                }
+            },
+            {
+                "id": "Read",
+                "kinds": [
+                    "BHPermission",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": 17,
+                    "name": "Read",
+                    "created_at": "2025-10-01T02:25:46.511867Z"
+                }
+            },
+            {
+                "id": "Wipe",
+                "kinds": [
+                    "BHPermission",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": 18,
+                    "name": "Wipe",
+                    "created_at": "2025-10-01T02:25:46.511867Z"
+                }
+            },
+            {
+                "id": "Mutate",
+                "kinds": [
+                    "BHPermission",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": 19,
+                    "name": "Mutate",
+                    "created_at": "2025-10-01T02:25:46.511867Z"
+                }
+            },
+            {
+                "id": "Ingest",
+                "kinds": [
+                    "BHPermission",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": 20,
+                    "name": "Ingest",
+                    "created_at": "2025-10-01T02:25:46.666306Z"
+                }
+            },
+            {
+                "id": "ReadUsers",
+                "kinds": [
+                    "BHPermission",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": 21,
+                    "name": "ReadUsers",
+                    "created_at": "2025-10-01T02:25:46.73288Z"
+                }
+            }
+        ],
+        "edges": [
+            {
+                "kind": "AssignedTo",
+                "start": {
+                    "value": "0f916532-08f7-47f4-bf1b-37b2317cce1b"
+                },
+                "end": {
+                    "value": "Administrator"
+                }
+            },
+            {
+                "kind": "ReadAppConfig",
+                "start": {
+                    "value": "Administrator"
+                },
+                "end": {
+                    "value": "app"
+                }
+            },
+            {
+                "kind": "WriteAppConfig",
+                "start": {
+                    "value": "Administrator"
+                },
+                "end": {
+                    "value": "app"
+                }
+            },
+            {
+                "kind": "GenerateReport",
+                "start": {
+                    "value": "Administrator"
+                },
+                "end": {
+                    "value": "risks"
+                }
+            },
+            {
+                "kind": "ManageRisks",
+                "start": {
+                    "value": "Administrator"
+                },
+                "end": {
+                    "value": "risks"
+                }
+            },
+            {
+                "kind": "CreateToken",
+                "start": {
+                    "value": "Administrator"
+                },
+                "end": {
+                    "value": "auth"
+                }
+            },
+            {
+                "kind": "ManageAppConfig",
+                "start": {
+                    "value": "Administrator"
+                },
+                "end": {
+                    "value": "auth"
+                }
+            },
+            {
+                "kind": "ManageProviders",
+                "start": {
+                    "value": "Administrator"
+                },
+                "end": {
+                    "value": "auth"
+                }
+            },
+            {
+                "kind": "ManageSelf",
+                "start": {
+                    "value": "Administrator"
+                },
+                "end": {
+                    "value": "auth"
+                }
+            },
+            {
+                "kind": "ManageUsers",
+                "start": {
+                    "value": "Administrator"
+                },
+                "end": {
+                    "value": "auth"
+                }
+            },
+            {
+                "kind": "Manage",
+                "start": {
+                    "value": "Administrator"
+                },
+                "end": {
+                    "value": "clients"
+                }
+            },
+            {
+                "kind": "Tasking",
+                "start": {
+                    "value": "Administrator"
+                },
+                "end": {
+                    "value": "clients"
+                }
+            },
+            {
+                "kind": "ManageJobs",
+                "start": {
+                    "value": "Administrator"
+                },
+                "end": {
+                    "value": "collection"
+                }
+            },
+            {
+                "kind": "Read",
+                "start": {
+                    "value": "Administrator"
+                },
+                "end": {
+                    "value": "graphdb"
+                }
+            },
+            {
+                "kind": "Write",
+                "start": {
+                    "value": "Administrator"
+                },
+                "end": {
+                    "value": "graphdb"
+                }
+            },
+            {
+                "kind": "Read",
+                "start": {
+                    "value": "Administrator"
+                },
+                "end": {
+                    "value": "saved_queries"
+                }
+            },
+            {
+                "kind": "Write",
+                "start": {
+                    "value": "Administrator"
+                },
+                "end": {
+                    "value": "saved_queries"
+                }
+            },
+            {
+                "kind": "Read",
+                "start": {
+                    "value": "Administrator"
+                },
+                "end": {
+                    "value": "clients"
+                }
+            },
+            {
+                "kind": "Wipe",
+                "start": {
+                    "value": "Administrator"
+                },
+                "end": {
+                    "value": "db"
+                }
+            },
+            {
+                "kind": "Mutate",
+                "start": {
+                    "value": "Administrator"
+                },
+                "end": {
+                    "value": "graphdb"
+                }
+            },
+            {
+                "kind": "Ingest",
+                "start": {
+                    "value": "Administrator"
+                },
+                "end": {
+                    "value": "graphdb"
+                }
+            },
+            {
+                "kind": "ReadUsers",
+                "start": {
+                    "value": "Administrator"
+                },
+                "end": {
+                    "value": "auth"
+                }
+            },
+            {
+                "kind": "ReadAppConfig",
+                "start": {
+                    "value": "User"
+                },
+                "end": {
+                    "value": "app"
+                }
+            },
+            {
+                "kind": "GenerateReport",
+                "start": {
+                    "value": "User"
+                },
+                "end": {
+                    "value": "risks"
+                }
+            },
+            {
+                "kind": "CreateToken",
+                "start": {
+                    "value": "User"
+                },
+                "end": {
+                    "value": "auth"
+                }
+            },
+            {
+                "kind": "ManageSelf",
+                "start": {
+                    "value": "User"
+                },
+                "end": {
+                    "value": "auth"
+                }
+            },
+            {
+                "kind": "Read",
+                "start": {
+                    "value": "User"
+                },
+                "end": {
+                    "value": "graphdb"
+                }
+            },
+            {
+                "kind": "Read",
+                "start": {
+                    "value": "User"
+                },
+                "end": {
+                    "value": "saved_queries"
+                }
+            },
+            {
+                "kind": "Write",
+                "start": {
+                    "value": "User"
+                },
+                "end": {
+                    "value": "saved_queries"
+                }
+            },
+            {
+                "kind": "Read",
+                "start": {
+                    "value": "User"
+                },
+                "end": {
+                    "value": "clients"
+                }
+            },
+            {
+                "kind": "ReadUsers",
+                "start": {
+                    "value": "User"
+                },
+                "end": {
+                    "value": "auth"
+                }
+            },
+            {
+                "kind": "ReadAppConfig",
+                "start": {
+                    "value": "Read-Only"
+                },
+                "end": {
+                    "value": "app"
+                }
+            },
+            {
+                "kind": "GenerateReport",
+                "start": {
+                    "value": "Read-Only"
+                },
+                "end": {
+                    "value": "risks"
+                }
+            },
+            {
+                "kind": "CreateToken",
+                "start": {
+                    "value": "Read-Only"
+                },
+                "end": {
+                    "value": "auth"
+                }
+            },
+            {
+                "kind": "ManageSelf",
+                "start": {
+                    "value": "Read-Only"
+                },
+                "end": {
+                    "value": "auth"
+                }
+            },
+            {
+                "kind": "Read",
+                "start": {
+                    "value": "Read-Only"
+                },
+                "end": {
+                    "value": "graphdb"
+                }
+            },
+            {
+                "kind": "Read",
+                "start": {
+                    "value": "Read-Only"
+                },
+                "end": {
+                    "value": "saved_queries"
+                }
+            },
+            {
+                "kind": "ReadUsers",
+                "start": {
+                    "value": "Read-Only"
+                },
+                "end": {
+                    "value": "auth"
+                }
+            },
+            {
+                "kind": "Tasking",
+                "start": {
+                    "value": "Upload-Only"
+                },
+                "end": {
+                    "value": "clients"
+                }
+            },
+            {
+                "kind": "Ingest",
+                "start": {
+                    "value": "Upload-Only"
+                },
+                "end": {
+                    "value": "graphdb"
+                }
+            },
+            {
+                "kind": "ReadAppConfig",
+                "start": {
+                    "value": "Power User"
+                },
+                "end": {
+                    "value": "app"
+                }
+            },
+            {
+                "kind": "GenerateReport",
+                "start": {
+                    "value": "Power User"
+                },
+                "end": {
+                    "value": "risks"
+                }
+            },
+            {
+                "kind": "ManageRisks",
+                "start": {
+                    "value": "Power User"
+                },
+                "end": {
+                    "value": "risks"
+                }
+            },
+            {
+                "kind": "CreateToken",
+                "start": {
+                    "value": "Power User"
+                },
+                "end": {
+                    "value": "auth"
+                }
+            },
+            {
+                "kind": "ManageSelf",
+                "start": {
+                    "value": "Power User"
+                },
+                "end": {
+                    "value": "auth"
+                }
+            },
+            {
+                "kind": "Manage",
+                "start": {
+                    "value": "Power User"
+                },
+                "end": {
+                    "value": "clients"
+                }
+            },
+            {
+                "kind": "Tasking",
+                "start": {
+                    "value": "Power User"
+                },
+                "end": {
+                    "value": "clients"
+                }
+            },
+            {
+                "kind": "ManageJobs",
+                "start": {
+                    "value": "Power User"
+                },
+                "end": {
+                    "value": "collection"
+                }
+            },
+            {
+                "kind": "Read",
+                "start": {
+                    "value": "Power User"
+                },
+                "end": {
+                    "value": "graphdb"
+                }
+            },
+            {
+                "kind": "Write",
+                "start": {
+                    "value": "Power User"
+                },
+                "end": {
+                    "value": "graphdb"
+                }
+            },
+            {
+                "kind": "Read",
+                "start": {
+                    "value": "Power User"
+                },
+                "end": {
+                    "value": "saved_queries"
+                }
+            },
+            {
+                "kind": "Write",
+                "start": {
+                    "value": "Power User"
+                },
+                "end": {
+                    "value": "saved_queries"
+                }
+            },
+            {
+                "kind": "Read",
+                "start": {
+                    "value": "Power User"
+                },
+                "end": {
+                    "value": "clients"
+                }
+            },
+            {
+                "kind": "Mutate",
+                "start": {
+                    "value": "Power User"
+                },
+                "end": {
+                    "value": "graphdb"
+                }
+            },
+            {
+                "kind": "Ingest",
+                "start": {
+                    "value": "Power User"
+                },
+                "end": {
+                    "value": "graphdb"
+                }
+            },
+            {
+                "kind": "ReadUsers",
+                "start": {
+                    "value": "Power User"
+                },
+                "end": {
+                    "value": "auth"
+                }
+            }
+        ]
+    }
+}
