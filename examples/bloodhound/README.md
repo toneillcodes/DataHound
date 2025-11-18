@@ -3,7 +3,18 @@
 - [bloodhound-authority-nodes.json](bloodhound-authority-nodes.json): the 'BHAuthority' nodes that don't have a distinct API source
 - [bloodhound-model.json](bloodhound-model.json): the custom icon schema for BloodHound nodes
 - [bloodhound-transformation-definitions.json](bloodhound-transformation-definitions.json): transformation definitions for BHE and BHCE
-- [sample-bhce-output.json](sample-bhce-output.json): example output
+- [sample-bhce-output.json](sample-bhce-output.json): example output  
+
+## APIs Invoked
+The following API endpoints are used to collect node and edge data
+| API | Endpoint | Source Of |
+|---|---|---|
+| Users | /api/v2/bloodhound-users | User nodes |
+| Users | /api/v2/bloodhound-users | Users -> Roles edges |
+| Roles | /api/v2/roles | Role nodes |
+| Roles | /api/v2/roles | Role -> Permission edges |
+| Permissions | /api/v2/permissions | Permission -> Authority edges |
+
 ## Process Overview
 1. Upload the custom icon definitions in ```banner-model.json``` to BloodHound using your method of choice
 
