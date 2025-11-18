@@ -1,9 +1,9 @@
 # BloodHound Collector
 ## Artifacts
-- [bloodhound-authority-nodes.json](bloodhound/bloodhound-authority-nodes.json): the 'BHAuthority' nodes that don't have a distinct API source
-- [bloodhound-model.json](bloodhound/bloodhound-model.json): the custom icon schema for BloodHound nodes
-- [bloodhound-transformation-definitions.json](bloodhound/bloodhound-transformation-definitions.json): transformation definitions for BHE and BHCE
-- [sample-bhce-output.json](bloodhound/sample-bhce-output.json): example output
+- [bloodhound-authority-nodes.json](bloodhound-authority-nodes.json): the 'BHAuthority' nodes that don't have a distinct API source
+- [bloodhound-model.json](bloodhound-model.json): the custom icon schema for BloodHound nodes
+- [bloodhound-transformation-definitions.json](bloodhound-transformation-definitions.json): transformation definitions for BHE and BHCE
+- [sample-bhce-output.json](sample-bhce-output.json): example output
 ## Process Overview
 1. Upload the custom icon definitions in ```banner-model.json``` to BloodHound using your method of choice
 
