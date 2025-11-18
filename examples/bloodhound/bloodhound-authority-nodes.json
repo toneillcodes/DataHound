@@ -1,0 +1,97 @@
+{
+    "metadata": {
+        "source_kind": "BHCE"
+    },
+    "graph": {
+        "nodes": [
+            {
+                "id": "auth",
+                "kinds": [
+                    "BHAuthority",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": "auth",
+                    "name": "auth"
+                }
+            },
+			{
+                "id": "collection",
+                "kinds": [
+                    "BHAuthority",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": "collection",
+                    "name": "collection"
+                }
+            },		
+			{
+                "id": "db",
+                "kinds": [
+                    "BHAuthority",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": "db",
+                    "name": "db"
+                }
+            },		
+			{
+                "id": "app",
+                "kinds": [
+                    "BHAuthority",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": "app",
+                    "name": "app"
+                }
+            },		
+			{
+                "id": "saved_queries",
+                "kinds": [
+                    "BHAuthority",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": "saved_queries",
+                    "name": "saved_queries"
+                }
+            },	
+			{
+                "id": "clients",
+                "kinds": [
+                    "BHAuthority",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": "clients",
+                    "name": "clients"
+                }
+            },		
+			{
+                "id": "graphdb",
+                "kinds": [
+                    "BHAuthority",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": "graphdb",
+                    "name": "graphdb"
+                }
+            },				
+			{
+                "id": "risks",
+                "kinds": [
+                    "BHAuthority",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": "risks",
+                    "name": "risks"
+                }
+            }			
+        ]
+    }
+}
