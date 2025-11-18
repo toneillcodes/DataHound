@@ -7,3 +7,5 @@ usage: DataHound.py [-h] base_kind input_file output_file
 DataHound.py: error: the following arguments are required: base_kind, file_path, output_file
 $
 ```
+## Examples
+- [BloodHound Collector](examples/bloodhound/README.md)
