@@ -3,8 +3,10 @@ A versatile data pipeline engine that ingests information from diverse external 
 ## Usage
 ```
 $ python DataHound.py
-usage: DataHound.py [-h] base_kind input_file output_file
-DataHound.py: error: the following arguments are required: base_kind, input_file, output_file
+usage: DataHound.py [-h] [--output OUTPUT] [--base-kind BASE_KIND] [--defs DEFS] [--graphA GRAPHA] [--matchA MATCHA] [--graphB GRAPHB] [--matchB MATCHB] [--edge-kind EDGE_KIND] [--file FILE]
+                       [--base-url BASE_URL]
+                       {transform,connect}
+DataHound.py: error: the following arguments are required: operation
 $
 ```
 ## Examples
