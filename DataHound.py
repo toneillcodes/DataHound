@@ -51,15 +51,15 @@ def connect_graphs(graph_a: str, match_a: str, graph_b: str, match_b: str, edge_
         success_output = success_df.rename(columns={'id_x': 'start_value', 'id_y': 'end_value'})[['start_value', 'end_value']]
 
         # failures (Graph A Orphans)
-        f1_fail_df = merged_df[merged_df['_merge'] == 'left_only'].copy()
-        f1_fail_output = f1_fail_df.rename(columns={
+        grapha_fail_df = merged_df[merged_df['_merge'] == 'left_only'].copy()
+        grapha_fail_output = grapha_fail_df.rename(columns={
             'id_x': 'failed_node_id',
             match_a_path: 'missing_lookup_key'
         })[['failed_node_id', 'missing_lookup_key']]
 
         # failures (Graph B Orphans)
-        f2_fail_df = merged_df[merged_df['_merge'] == 'right_only'].copy()
-        f2_fail_output = f2_fail_df.rename(columns={
+        graphb_fail_df = merged_df[merged_df['_merge'] == 'right_only'].copy()
+        graphb_fail_output = graphb_fail_df.rename(columns={
             'id_y': 'failed_node_id',
             match_b_path: 'missing_lookup_key'
         })[['failed_node_id', 'missing_lookup_key']]
@@ -88,16 +88,16 @@ def connect_graphs(graph_a: str, match_a: str, graph_b: str, match_b: str, edge_
         connected_graph['graph']['edges'].extend(edges)
         
         # report of errors and summary stats
-        final_report = {
-            "errors": {
-                "missing_in_graph_a": f2_fail_output.to_dict(orient='records'),
-                "missing_in_graph_b": f1_fail_output.to_dict(orient='records')             
-            },
+        processing_report = {
             "summary": {
                 "total_matches": len(success_output),
-                "unmatched_graph_a": len(f1_fail_output),
-                "unmatched_graph_b": len(f2_fail_output)
-            }
+                "unmatched_graph_a": len(grapha_fail_output),
+                "unmatched_graph_b": len(graphb_fail_output)
+            },
+            "records": {
+                "unmatched_in_graph_a": grapha_fail_output.to_dict(orient='records'),
+                "unmatched_in_graph_b": graphb_fail_output.to_dict(orient='records')             
+            }            
         }
 
         # write output
@@ -105,7 +105,8 @@ def connect_graphs(graph_a: str, match_a: str, graph_b: str, match_b: str, edge_
             json.dump(connected_graph, f, indent=4)
             logging.info(f"Success! Output written to: {output_path}")
         
-        logging.info(f"Outputting final_report summary: {json.dumps(final_report, indent=4)}")        
+        # todo: dump this to a summary.json file or a central log file
+        logging.info(f"Outputting processing_report summary:\n {json.dumps(processing_report, indent=4)}")        
         return True
 
     except KeyError as e:
@@ -170,7 +171,7 @@ def call_rest_api(config):
              logging.error("Response object was not available for text logging.")
         return None
 
-def transform_node(input_object: pd.DataFrame, config: dict, base_kind: str):
+def transform_node(input_object: pd.DataFrame, config: dict, source_kind: str):
     """
     Transforms a DataFrame into a list of node dictionaries.
     """
@@ -179,8 +180,8 @@ def transform_node(input_object: pd.DataFrame, config: dict, base_kind: str):
     item_kind = config['item_kind']
     id_location = config['id_location']
 
-    #logging.debug(f"id_location: {id_location}") # Original print commented out
-    #logging.debug(f"target_columns: {target_columns}") # Original print commented out
+    #logging.debug(f"id_location: {id_location}") 
+    #logging.debug(f"target_columns: {target_columns}")
 
     df_renamed = input_object.rename(columns=column_mapping)
     valid_cols = [col for col in target_columns if col in df_renamed.columns]
@@ -196,13 +197,13 @@ def transform_node(input_object: pd.DataFrame, config: dict, base_kind: str):
     # convert dataframe to a dictionary
     records = df_transformed.to_dict('records')
 
-    #logging.debug(f"records: {records}") # Original print commented out
+    #logging.debug(f"records: {records}") 
 
     # construct node objects from transformed dataframe
     node_data = [
         {
             "id": row[id_location],
-            "kinds": [item_kind, base_kind],
+            "kinds": [item_kind, source_kind],
             "properties": row 
         }
         for row in records
@@ -282,23 +283,27 @@ def main():
     parser = argparse.ArgumentParser(description="A versatile data pipeline engine that ingests information from diverse external sources and transforms the extracted node and edge data into the BloodHound OpenGraph format.")
     
     # common arguments
-    parser.add_argument("operation", type=str, choices=["transform", "connect"], help="Operation to complete.")
-    parser.add_argument("--output", type=str, help="Output file path for graph JSON", default="output_graph.json")
+    general_group = parser.add_argument_group("General Options")
+    general_group.add_argument("--operation", required=True, type=str, choices=["collect", "connect"], help="Operation to complete.")
+    general_group.add_argument("--output", required=True, type=str, help="Output file path for graph JSON", default="output_graph.json")
 
-    # arguments for transform operations
-    parser.add_argument("--base-kind", type=str, help="The 'source_kind' to use for nodes in the graph.")
-    parser.add_argument("--defs", type=str, help="The path to the transformation definitions file.")
+    # arguments for all operations
+    collect_group = parser.add_argument_group("Collect Options")
+    collect_group.add_argument("--source-kind", type=str, help="The 'source_kind' to use for nodes in the graph.")
+    collect_group.add_argument("--config", type=str, help="The path to the collection config file.")
     
     # arguments for connect operations
-    parser.add_argument("--graphA", type=str, help="Graph containing Start nodes")
-    parser.add_argument("--matchA", type=str, help="Element containing the field to match on in Graph A")
-    parser.add_argument("--graphB", type=str, help="Graph containing End nodes")
-    parser.add_argument("--matchB", type=str, help="Element containing the field to match on in Graph B")
-    parser.add_argument("--edge-kind", type=str, help="Kind value to use when generating connection edges")
+    connect_group = parser.add_argument_group("Connect Options")
+    connect_group.add_argument("--graphA", type=str, help="Graph containing Start nodes")
+    connect_group.add_argument("--matchA", type=str, help="Element containing the field to match on in Graph A")
+    connect_group.add_argument("--graphB", type=str, help="Graph containing End nodes")
+    connect_group.add_argument("--matchB", type=str, help="Element containing the field to match on in Graph B")
+    connect_group.add_argument("--edge-kind", type=str, help="Kind value to use when generating connection edges")
 
     # arguments for upload operations
-    parser.add_argument("--file", type=str, help="Graph JSON to upload")
-    parser.add_argument("--base-url", type=str, help="BH base URL")
+    #upload_group = parser.add_argument_group("Upload Options")
+    #upload_group.add_argument("--file", type=str, help="Graph JSON to upload")
+    #upload_group.add_argument("--base-url", type=str, help="BH base URL")
 
     args = parser.parse_args()
 
@@ -306,9 +311,9 @@ def main():
         logging.error("Pandas is not installed. Run: pip install pandas")
         sys.exit(1)
 
-    base_kind = args.base_kind
+    source_kind = args.source_kind
     graph_structure = {
-        "metadata": { "source_kind": base_kind }, 
+        "metadata": { "source_kind": source_kind }, 
         "graph": {
             "nodes": [],
             "edges": []
@@ -316,10 +321,10 @@ def main():
     }   
 
     operation = args.operation
-    if operation == "transform":
+    if operation == "collect":
         try:
-            config_list = read_config_file(args.defs)
-            logging.info(f"Successfully read config from: {args.defs}")
+            config_list = read_config_file(args.config)
+            logging.info(f"Successfully read config from: {args.config}")
         except (FileNotFoundError, json.JSONDecodeError) as e:
             logging.error(e)
             sys.exit(1)
@@ -381,9 +386,9 @@ def main():
                 # transform and append using dispatch dictionary
                 transformer = TRANSFORMERS.get(item_type)
                 if transformer:
-                    # for nodes we'll pass the base_kind value, but we don't need it for edges
+                    # for nodes we'll pass the source_kind value, but we don't need it for edges
                     if item_type == 'node':
-                        transformed_data = transformer(df, config, base_kind)
+                        transformed_data = transformer(df, config, source_kind)
                     else:
                         transformed_data = transformer(df, config)
 
