@@ -10,7 +10,7 @@ DataHound.py: error: the following arguments are required: operation
 $
 ```
 ### Arguments
-* 'operation' is a required argument that indicates the task to complete.
+* 'operation' is a required argument that indicates the task to complete. There are currently two valid values: 'transform' and 'connect'.
   * transform: Parse the transformation definitions file specified by the '--defs' argument, applying the '--base-kind' argument as 'source_kind' and saving the graph to the '--output' file.
   * connect: Correlate the data from two graphs (--graphA and --graphB) and correlate the two sources on the field names from '--matchA' and '--matchB', generate a graph with edge kinds set to '--edge-kind' and output the graph to the '--output' file.
 ## Examples
