@@ -2,12 +2,121 @@ from jsonpath_ng.ext.parser import parse as jpng_parse
 import pandas as pd
 import requests
 import argparse
+import logging
 import json
 import sys
 import os
 
 # global requests Session object
 API_SESSION = requests.Session() 
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
+
+def connect_graphs(graph_a: str, match_a: str, graph_b: str, match_b: str, edge_kind: str, output_path: str) -> None:
+    logging.info(f"Correlating {graph_a} and {graph_b}.")
+
+    try:
+        with open(graph_a, 'r') as f:
+            graph_a_data = json.load(f)
+        with open(graph_b, 'r') as f:
+            graph_b_data = json.load(f)
+
+        # normalize data
+        df1 = pd.json_normalize(graph_a_data['graph']['nodes'])
+        df2 = pd.json_normalize(graph_b_data['graph']['nodes'])
+
+        # Clean Keys (String conversion + Trim whitespace)
+        match_a_path = f'properties.{match_a}'
+        match_b_path = f'properties.{match_b}'
+        df1[match_a_path] = df1[match_a_path].astype(str).str.strip()
+        df2[match_b_path] = df2[match_b_path].astype(str).str.strip()
+
+        # Select relevant columns
+        df1_subset = df1[['id', match_a_path]]
+        df2_subset = df2[['id', match_b_path]]
+
+        # Perform Outer Merge
+        merged_df = pd.merge(
+            df1_subset,
+            df2_subset,
+            left_on=match_a_path,
+            right_on=match_b_path,
+            how='outer',
+            indicator=True
+        )
+
+        # matched nodes
+        success_df = merged_df[merged_df['_merge'] == 'both'].copy()
+        success_output = success_df.rename(columns={'id_x': 'start_value', 'id_y': 'end_value'})[['start_value', 'end_value']]
+
+        # failures (Graph A Orphans)
+        f1_fail_df = merged_df[merged_df['_merge'] == 'left_only'].copy()
+        f1_fail_output = f1_fail_df.rename(columns={
+            'id_x': 'failed_node_id',
+            match_a_path: 'missing_lookup_key'
+        })[['failed_node_id', 'missing_lookup_key']]
+
+        # failures (Graph B Orphans)
+        f2_fail_df = merged_df[merged_df['_merge'] == 'right_only'].copy()
+        f2_fail_output = f2_fail_df.rename(columns={
+            'id_y': 'failed_node_id',
+            match_b_path: 'missing_lookup_key'
+        })[['failed_node_id', 'missing_lookup_key']]
+
+        connected_graph = {
+            "graph": {
+                "edges": [                    
+                ]
+            }
+        }
+
+        # construct edge objects from transformed dataframe
+        edges = [
+            {
+                "kind": edge_kind,
+                "start": {
+                        "value": row['start_value']
+                },
+                "end": {
+                        "value": row['end_value']
+                }
+            }
+            for row in success_output[['start_value', 'end_value']].to_dict('records')
+        ]
+
+        connected_graph['graph']['edges'].extend(edges)
+        
+        # report of errors and summary stats
+        final_report = {
+            "errors": {
+                "missing_in_graph_a": f2_fail_output.to_dict(orient='records'),
+                "missing_in_graph_b": f1_fail_output.to_dict(orient='records')             
+            },
+            "summary": {
+                "total_matches": len(success_output),
+                "unmatched_graph_a": len(f1_fail_output),
+                "unmatched_graph_b": len(f2_fail_output)
+            }
+        }
+
+        # write output
+        with open(output_path, 'w') as f:
+            json.dump(connected_graph, f, indent=4)
+            logging.info(f"Success! Output written to: {output_path}")
+        
+        logging.info(f"Outputting final_report summary: {json.dumps(final_report, indent=4)}")        
+        return True
+
+    except KeyError as e:
+        logging.error(f"Key error during processing (check your property names): {e}")
+        return True
+    except FileNotFoundError as e:
+        logging.error(f"File not found: {e}")
+        return False
+    except Exception as e:
+        logging.error(f"Connect graphs: An unexpected error occurred: {e}")
+        return False
 
 def read_config_file(file_path):
     """
@@ -23,7 +132,7 @@ def read_config_file(file_path):
         raise json.JSONDecodeError(f"Error decoding JSON in '{file_path}': {e.msg}", e.doc, e.pos)
 
     if not isinstance(data, list):
-        print(f"Warning: The file '{file_path}' content is not a list, but a {type(data).__name__}. Treating as single config.")
+        logging.warning(f"The file '{file_path}' content is not a list, but a {type(data).__name__}. Treating as single config.")
         return [data] if isinstance(data, dict) else []
         
     return data
@@ -49,11 +158,16 @@ def call_rest_api(config):
         return json_response
 
     except requests.exceptions.RequestException as e:
-        print(f"[API ERROR] Failed to fetch {request_url}: {e}")
+        logging.error(f"[API ERROR] Failed to fetch {request_url}: {e}")
         return None
     except json.JSONDecodeError:
-        print(f"[API ERROR] Failed to decode JSON response from {request_url}.")
-        print(f"Response text: {response.text[:200]}...")
+        logging.error(f"[API ERROR] Failed to decode JSON response from {request_url}.")
+        # response should be defined here, as raise_for_status() and .json() failed
+        # check if response is available before accessing .text
+        if 'response' in locals() and hasattr(response, 'text'):
+             logging.error(f"Response text: {response.text[:200]}...")
+        else:
+             logging.error("Response object was not available for text logging.")
         return None
 
 def transform_node(input_object: pd.DataFrame, config: dict, base_kind: str):
@@ -65,8 +179,8 @@ def transform_node(input_object: pd.DataFrame, config: dict, base_kind: str):
     item_kind = config['item_kind']
     id_location = config['id_location']
 
-    #print(f"[DEBUG] id_location: {id_location}")
-    #print(f"[DEBUG] target_columns: {target_columns}")
+    #logging.debug(f"id_location: {id_location}") # Original print commented out
+    #logging.debug(f"target_columns: {target_columns}") # Original print commented out
 
     df_renamed = input_object.rename(columns=column_mapping)
     valid_cols = [col for col in target_columns if col in df_renamed.columns]
@@ -82,7 +196,7 @@ def transform_node(input_object: pd.DataFrame, config: dict, base_kind: str):
     # convert dataframe to a dictionary
     records = df_transformed.to_dict('records')
 
-    #print(f"[DEBUG] records: {records}")
+    #logging.debug(f"records: {records}") # Original print commented out
 
     # construct node objects from transformed dataframe
     node_data = [
@@ -166,20 +280,30 @@ TRANSFORMERS = {
 # main execution
 def main():
     parser = argparse.ArgumentParser(description="A versatile data pipeline engine that ingests information from diverse external sources and transforms the extracted node and edge data into the BloodHound OpenGraph format.")
-    parser.add_argument("base_kind", type=str, help="The base source_kind value to use for the graph.")
-    parser.add_argument("input_file", type=str, help="The path to the transformation definitions file.")
-    parser.add_argument("output_file", type=str, help="The path for the JSON output.") 
     
+    # common arguments
+    parser.add_argument("operation", type=str, choices=["transform", "connect"], help="Operation to complete.")
+    parser.add_argument("--output", type=str, help="Output file path for graph JSON", default="output_graph.json")
+
+    # arguments for transform operations
+    parser.add_argument("--base-kind", type=str, help="The 'source_kind' to use for nodes in the graph.")
+    parser.add_argument("--defs", type=str, help="The path to the transformation definitions file.")
+    
+    # arguments for connect operations
+    parser.add_argument("--graphA", type=str, help="Graph containing Start nodes")
+    parser.add_argument("--matchA", type=str, help="Element containing the field to match on in Graph A")
+    parser.add_argument("--graphB", type=str, help="Graph containing End nodes")
+    parser.add_argument("--matchB", type=str, help="Element containing the field to match on in Graph B")
+    parser.add_argument("--edge-kind", type=str, help="Kind value to use when generating connection edges")
+
+    # arguments for upload operations
+    parser.add_argument("--file", type=str, help="Graph JSON to upload")
+    parser.add_argument("--base-url", type=str, help="BH base URL")
+
     args = parser.parse_args()
 
-    try:
-        config_list = read_config_file(args.input_file)
-        print(f"[*] Successfully read config from: {args.input_file}")
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(e)
-        sys.exit(1)
-    except Exception as e:
-        print(f"[ERROR] An unexpected error occurred: {e}")
+    if pd is None:
+        logging.error("Pandas is not installed. Run: pip install pandas")
         sys.exit(1)
 
     base_kind = args.base_kind
@@ -189,94 +313,129 @@ def main():
             "nodes": [],
             "edges": []
         }
-    }
+    }   
 
-    for config in config_list:
-        item_name = config.get('item_name', 'Unknown Item')
-        item_type = config.get('item_type')
-        print(f"[*] Processing Item: {item_name} (Type: {item_type})")
-
-        # validation
-        source_type = config.get('source_type')
-        if source_type == "url":
-            if not config.get('source_url'):
-                 print(f"[ERROR] 'source_url' is required for source_type='url' (Ref: {item_name}). Skipping.")
-                 continue
-
-            if config.get('source_auth_type') == "bearer-token" and not config.get('source_auth_token'):
-                print(f"[ERROR] 'source_auth_token' is required for bearer-token auth (Ref: {item_name}). Skipping.")
-                continue
-
-            # retrieve data from API endpoint defined in tranformation (config)
-            api_response = call_rest_api(config)
-
-            #print(f"[DEBUG] api_response: {api_response}")
+    operation = args.operation
+    if operation == "transform":
+        try:
+            config_list = read_config_file(args.defs)
+            logging.info(f"Successfully read config from: {args.defs}")
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            logging.error(e)
+            sys.exit(1)
+        except Exception as e:
+            logging.error(f"An unexpected error occurred: {e}")
+            sys.exit(1)      
             
-            if api_response is None:
-                print(f"[!] Skipping item {item_name} due to failed API response.")
-                continue
+        for config in config_list:
+            item_name = config.get('item_name', 'Unknown Item')
+            item_type = config.get('item_type')
+            logging.info(f"Processing Item: {item_name} (Type: {item_type})")
 
-            # retrieve the root data element
-            data_root_element = config.get('data_root')
-            if not data_root_element:
-                 print(f"[ERROR] 'data_root' element is missing for item {item_name}. Skipping.")
-                 continue
-                 
-            jsonpath_expression = jpng_parse(f'$..{data_root_element}')
-            path_matches = jsonpath_expression.find(api_response)
-            
-            if not path_matches:
-                print(f"[ERROR] Could not find data root element: {data_root_element} for item {item_name}. Skipping.")
-                continue
+            # validation
+            source_type = config.get('source_type')
+            if source_type == "url":
+                if not config.get('source_url'):
+                    logging.error(f"'source_url' is required for source_type='url' (Ref: {item_name}). Skipping.")
+                    continue
 
-            first_match = path_matches[0]
-            data_object = first_match.value
+                if config.get('source_auth_type') == "bearer-token" and not config.get('source_auth_token'):
+                    logging.error(f"'source_auth_token' is required for bearer-token auth (Ref: {item_name}). Skipping.")
+                    continue
 
-            #print(f"data_object: {data_object}")
-            
-            # todo: update execution to resume here after retrieving data from source
-            try:
-                # Normalizing the JSON data into a flat DataFrame
-                df = pd.json_normalize(data_object)
-            except Exception as e:
-                print(f"[ERROR] Failed to normalize data for item {item_name}: {e}. Skipping.")
-                continue
+                # retrieve data from API endpoint defined in tranformation (config)
+                api_response = call_rest_api(config)
 
-            # transform and append using dispatch dictionary
-            transformer = TRANSFORMERS.get(item_type)
-            if transformer:
-                # for nodes we'll pass the base_kind value, but we don't need it for edges
-                if item_type == 'node':
-                    transformed_data = transformer(df, config, base_kind)
+                #logging.debug(f"api_response: {api_response}") 
+                
+                if api_response is None:
+                    logging.warning(f"Skipping item {item_name} due to failed API response.")
+                    continue
+
+                # retrieve the root data element
+                data_root_element = config.get('data_root')
+                if not data_root_element:
+                    logging.error(f"'data_root' element is missing for item {item_name}. Skipping.")
+                    continue
+                    
+                jsonpath_expression = jpng_parse(f'$..{data_root_element}')
+                path_matches = jsonpath_expression.find(api_response)
+                
+                if not path_matches:
+                    logging.error(f"Could not find data root element: {data_root_element} for item {item_name}. Skipping.")
+                    continue
+
+                first_match = path_matches[0]
+                data_object = first_match.value
+
+                #logging.debug(f"data_object: {data_object}") 
+                
+                # todo: update execution to resume here after retrieving data from source
+                try:
+                    # Normalizing the JSON data into a flat DataFrame
+                    df = pd.json_normalize(data_object)
+                except Exception as e:
+                    logging.error(f"Failed to normalize data for item {item_name}: {e}. Skipping.")
+                    continue
+
+                # transform and append using dispatch dictionary
+                transformer = TRANSFORMERS.get(item_type)
+                if transformer:
+                    # for nodes we'll pass the base_kind value, but we don't need it for edges
+                    if item_type == 'node':
+                        transformed_data = transformer(df, config, base_kind)
+                    else:
+                        transformed_data = transformer(df, config)
+
+                    # append 'transformed_data' to the appropriate graph element (nodes or edges)
+                    target_list = 'nodes' if item_type == 'node' else 'edges'
+                    graph_structure['graph'][target_list].extend(transformed_data)
+                    logging.info(f"Successfully processed {len(transformed_data)} {item_type}s.")
                 else:
-                    transformed_data = transformer(df, config)
+                    logging.error(f"Unknown item_type '{item_type}' defined for item {item_name}. Skipping.")
 
-                # append 'transformed_data' to the appropriate graph element (nodes or edges)
-                target_list = 'nodes' if item_type == 'node' else 'edges'
-                graph_structure['graph'][target_list].extend(transformed_data)
-                print(f"[*] Successfully processed {len(transformed_data)} {item_type}s.")
+            # todo: add logic for 'json_file' and 'csv_file' here
+            elif source_type != "url":
+                logging.warning(f"Source type '{source_type}' is not yet implemented. Skipping item {item_name}.")
+        
+        # todo: add output controls
+        #logging.info("Processing complete. Dumping graph to stdout:") 
+        #json.dump(graph_structure, sys.stdout, indent=4)    
+
+        output_file = args.output
+        if output_file:
+            logging.info(f"Writing graph to output file: {output_file}")
+            try:      
+                with open(output_file, 'w') as f:
+                    json.dump(graph_structure, f, indent=4)         
+                logging.info(f"Wrote graph to {output_file}")
+            except Exception as e: 
+                logging.error(f"Failed to write output file: {output_file}. Error: {e}")
+
+    elif operation == "connect":
+        graph_a = args.graphA
+        match_a = args.matchA
+        graph_b = args.graphB
+        match_b = args.matchB
+        edge_kind = args.edge_kind
+        if edge_kind is None:
+            logging.error("The '--edge-kind' argument is required with the 'connect' operation.")
+            sys.exit(1)
+        output_file = args.output
+        if output_file:
+            if connect_graphs(graph_a, match_a, graph_b, match_b, edge_kind, output_file):
+                logging.info(f"Successfully connected graphs with {edge_kind} edge kind.")
             else:
-                print(f"[ERROR] Unknown item_type '{item_type}' defined for item {item_name}. Skipping.")
-
-        # todo: add logic for 'json_file' and 'csv_file' here
-        elif source_type != "url":
-            print(f"[!] Source type '{source_type}' is not yet implemented. Skipping item {item_name}.")
-            
-    # todo: add output controls
-    #print("[*] Processing complete. Dumping graph to stdout:")
-    #json.dump(graph_structure, sys.stdout, indent=4)
-
-    output_file = args.output_file
-    if output_file:
-        print(f"[*] Writing graph to output file: {output_file}")
-        try:       
-            with open(output_file, 'w') as f:
-                json.dump(graph_structure, f, indent=4)            
-            print(f"[>] Wrote graph to {output_file}")
-        except:
-            print("[ERROR] Failed to write output file")
-
-    print("[*] Done.")
+                logging.error(f"Failed to connect graph A ({graph_a}) to graph B ({graph_b})")
+                sys.exit(1)
+        else:
+            logging.error("Output file is missing! Unable to complete graph connection.")
+            sys.exit(1)
+    else:
+        logging.error("Unrecognized operation! How'd you even get here??")
+        sys.exit(1)
+    
+    logging.info("Done.")
 
 if __name__ == '__main__':
     main()
