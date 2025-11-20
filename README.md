@@ -1,9 +1,8 @@
 # DataHound
-A versatile data pipeline engine that ingests information from diverse external sources and transforms the extracted node and edge data into the BloodHound OpenGraph format.
-## Functionality
-The 'operation' arugment is required and indicates the task to complete.  
-There are currently two valid values: 'transform' and 'connect'.
-### Transform Operation
+A data pipeline engine tha collects data from REST APIs and connects graphs.
+## Operations
+DataHound performs to operations: **collect** and **connect**
+### Collect
 This mode reads a JSON configuration file (--defs), calls the specified data source, extracts data, normalizes the data into a Pandas DataFrame, and transforms it into BloodHound OpenGraph nodes and edges
 ```
 python DataHound.py transform \
@@ -11,7 +10,7 @@ python DataHound.py transform \
   --base-kind MyCustomSource \
   --output my_transformed_graph.json
 ```
-### Connect Operation
+### Connect
 This mode takes two existing BloodHound OpenGraph JSON files and creates new edges between nodes in the first graph (--graphA) and nodes in the second graph (--graphB).  
 * Correlation: Performs an outer merge using Pandas DataFrames to match nodes based on a specified property (--matchA and --matchB).  
 * Edge Creation: For successful matches, it generates a new edge object with the specified kind (--edge-kind) connecting the matched nodes.  
