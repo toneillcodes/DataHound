@@ -1,7 +1,9 @@
 # DataHound
 A data pipeline engine tha collects data from REST APIs and connects graphs.
 ## Operations
-DataHound performs to operations: **collect** and **connect**
+DataHound performs two operations: 
+* collect
+* connect
 ### Collect
 This mode reads a JSON configuration file, calls the specified data source, extracts data, normalizes the data into a Pandas DataFrame, and transforms it into BloodHound OpenGraph nodes and edges
 ```
