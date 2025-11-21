@@ -73,6 +73,7 @@ $
 
 ## Examples
 - [BloodHound Collector](examples/bloodhound/README.md)
+- LDAP Collector
 ## Todo
 * Debug or verbose messages with logging
 * Support for encrypted secrets
