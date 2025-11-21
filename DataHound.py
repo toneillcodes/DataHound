@@ -1,17 +1,115 @@
 from jsonpath_ng.ext.parser import parse as jpng_parse
+from ldap3.core.exceptions import LDAPException
 import pandas as pd
 import requests
 import argparse
 import logging
+import ldap3
 import json
 import sys
 import os
+import re
 
 # global requests Session object
 API_SESSION = requests.Session() 
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
+
+# helper function
+def parse_uid_from_dn(dn_string):
+    """
+    Extracts the value of the 'uid' attribute from a full DN string.
+    Example: 'uid=user1,ou=People,dc=example' -> 'user1'
+    """
+    if not dn_string:
+        return None
+    
+    # Regular expression to find 'uid=' followed by any characters until the next comma or end of string
+    match = re.match(r'uid=([^,]+)', dn_string, re.IGNORECASE)
+    if match:
+        return match.group(1)
+    
+    # Add logic here for other common identifiers like 'cn' if needed
+    return dn_string # Return original if parsing fails
+
+def fetch_ldap_data(item_config: dict, bind_password: str) -> list or None:
+    """
+    Connects to LDAP, performs a search based on item_config, and returns raw entries.
+    """
+    server_address = item_config['server']
+    port = item_config['port']
+    use_ssl = item_config.get('use_ssl', False)
+    bind_dn = item_config['bind_dn']
+    base_dn = item_config['ldap_base_dn']
+    search_filter = item_config['ldap_search_filter']
+    attributes = item_config['ldap_attributes']
+
+    server = ldap3.Server(server_address, port=port, use_ssl=use_ssl, get_info=ldap3.ALL)
+
+    try:
+        conn = ldap3.Connection(server, user=bind_dn, password=bind_password, auto_bind=True)
+
+        if not conn.bound:
+            logging.error(f"LDAP ERROR: Failed to bind to LDAP server as {bind_dn}")
+            return None
+
+        logging.info(f"Searching for data in: {base_dn} with filter: {search_filter}")
+        conn.search(
+            search_base=base_dn,
+            search_filter=search_filter,
+            search_scope=ldap3.SUBTREE,
+            attributes=attributes
+        )
+        
+        # does this item have any DN values to be trimmed?
+        clean_dn = item_config.get('clean_dn_attributes', [])
+        
+        results = []
+        
+        for entry in conn.entries:
+            ldap_attributes = entry.entry_attributes 
+            
+            row = {}
+            for attr, values in ldap_attributes.items():
+                
+                # Check if values is not an empty list
+                if values and isinstance(values, list):
+                    
+                    # Check if this attribute is configured for DN cleanup
+                    if attr in clean_dn: 
+                        # apply DN cleanup to all values in the list
+                        cleaned_values = [parse_uid_from_dn(v) for v in values]
+                        # what should we do with failures?
+                        values_to_store = [v for v in cleaned_values if v]
+                    else:
+                        values_to_store = values
+                        
+                    # single/multi-value handling logic
+                    if len(values_to_store) == 1:
+                        # single value, grab the value
+                        row[attr] = values_to_store[0]
+                    else:
+                        # multi-valued, store the list for pandas.explode/normalize later
+                        row[attr] = values_to_store
+                else:
+                    # set a value for empty attributes
+                    row[attr] = None
+            
+            results.append(row)
+
+        logging.info(f"Found {len(results)} LDAP entries.")
+        return results
+
+    except LDAPException as e:
+        logging.error(f"LDAP Error: {e}")
+        return None
+    except Exception as e:
+        logging.error(f"An unexpected error occurred during LDAP fetch: {e}")
+        return None
+    finally:
+        if 'conn' in locals() and conn.bound:
+            conn.unbind()
 
 def connect_graphs(graph_a: str, match_a: str, graph_b: str, match_b: str, edge_kind: str, output_path: str) -> None:
     logging.info(f"Correlating {graph_a} and {graph_b}.")
@@ -320,7 +418,8 @@ def main():
     }   
 
     operation = args.operation
-    if operation == "collect":
+    if operation == "collect":       
+        # first thing we need to do is read the collection definitions config file 
         try:
             config_list = read_config_file(args.config)
             logging.info(f"Successfully read config from: {args.config}")
@@ -330,15 +429,16 @@ def main():
         except Exception as e:
             logging.error(f"An unexpected error occurred: {e}")
             sys.exit(1)      
-            
+        
+        # parse through each item in the config file
         for config in config_list:
-            item_name = config.get('item_name', 'Unknown Item')
+            item_name = config.get('item_name')
             item_type = config.get('item_type')
             logging.info(f"Processing Item: {item_name} (Type: {item_type})")
 
-            # validation
             source_type = config.get('source_type')
             if source_type == "url":
+                # validation
                 if not config.get('source_url'):
                     logging.error(f"'source_url' is required for source_type='url' (Ref: {item_name}). Skipping.")
                     continue
@@ -371,37 +471,40 @@ def main():
 
                 first_match = path_matches[0]
                 data_object = first_match.value
-
-                #logging.debug(f"data_object: {data_object}") 
-                
-                # todo: update execution to resume here after retrieving data from source
-                try:
-                    # Normalizing the JSON data into a flat DataFrame
-                    df = pd.json_normalize(data_object)
-                except Exception as e:
-                    logging.error(f"Failed to normalize data for item {item_name}: {e}. Skipping.")
+            elif source_type == "ldap":
+                ldap_password = input("LDAP Bind Password: ")
+                # retrieve data from ldap
+                ldap_data = fetch_ldap_data(config, ldap_password)
+                if ldap_data is None:
+                    logging.warning(f"Skipping item {item_name} due to failed LDAP connection/search.")
                     continue
-
-                # transform and append using dispatch dictionary
-                transformer = TRANSFORMERS.get(item_type)
-                if transformer:
-                    # for nodes we'll pass the source_kind value, but we don't need it for edges
-                    if item_type == 'node':
-                        transformed_data = transformer(df, config, source_kind)
-                    else:
-                        transformed_data = transformer(df, config)
-
-                    # append 'transformed_data' to the appropriate graph element (nodes or edges)
-                    target_list = 'nodes' if item_type == 'node' else 'edges'
-                    graph_structure['graph'][target_list].extend(transformed_data)
-                    logging.info(f"Successfully processed {len(transformed_data)} {item_type}s.")
-                else:
-                    logging.error(f"Unknown item_type '{item_type}' defined for item {item_name}. Skipping.")
-
-            # todo: add logic for 'json_file' and 'csv_file' here
-            elif source_type != "url":
+                data_object = ldap_data                 
+            else:
                 logging.warning(f"Source type '{source_type}' is not yet implemented. Skipping item {item_name}.")
         
+            try:
+                # flatten JSON
+                df = pd.json_normalize(data_object)
+            except Exception as e:
+                logging.error(f"Failed to normalize data for item {item_name}: {e}. Skipping.")
+                continue
+
+            # transform and append using dispatch dictionary
+            transformer = TRANSFORMERS.get(item_type)
+            if transformer:
+                # for nodes we'll pass the source_kind value, but we don't need it for edges
+                if item_type == 'node':
+                    transformed_data = transformer(df, config, source_kind)
+                else:
+                    transformed_data = transformer(df, config)
+
+                # append 'transformed_data' to the appropriate graph element (nodes or edges)
+                target_list = 'nodes' if item_type == 'node' else 'edges'
+                graph_structure['graph'][target_list].extend(transformed_data)
+                logging.info(f"Successfully processed {len(transformed_data)} {item_type}s.")
+            else:
+                logging.error(f"Unknown item_type '{item_type}' defined for item {item_name}. Skipping.")
+
         # todo: add output controls
         #logging.info("Processing complete. Dumping graph to stdout:") 
         #json.dump(graph_structure, sys.stdout, indent=4)    
