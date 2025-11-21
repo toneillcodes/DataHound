@@ -36,7 +36,7 @@ $
   
 5. Run DataHound to process the transformation definitions and generate an output file
 ```
-$ python DataHound.py BHCE bloodhound-transformations.json sample-bhce-output.json
+$ python DataHound.py --operation collect --source-kind BHCE --config bloodhound-transformations.json --output sample-bhce-output.json
 [*] Successfully read config from: bloodhound-transformations.json
 [*] Processing Item: Users (Type: node)
 [*] Successfully processed 1 nodes.
