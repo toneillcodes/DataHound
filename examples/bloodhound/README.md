@@ -2,7 +2,7 @@
 ## Artifacts
 - [bloodhound-authority-nodes.json](bloodhound-authority-nodes.json): the 'BHAuthority' nodes that don't have a distinct API source
 - [bloodhound-model.json](bloodhound-model.json): the custom icon schema for BloodHound nodes
-- [bloodhound-transformation-definitions.json](bloodhound-transformation-definitions.json): transformation definitions for BHE and BHCE
+- [bloodhound-collection-definitions.json](bloodhound-collection-definitions.json): collection definitions for BHE and BHCE
 - [sample-bhce-output.json](sample-bhce-output.json): example output  
 
 ## APIs Invoked
