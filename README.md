@@ -13,9 +13,20 @@ python DataHound.py collect \
   --output my_transformed_graph.json
 ```
 #### Configuration Properties
+##### Common
 | Property | Description | Required? |
 |----|----|----|
-| item_type | The type that the entry represents, valid values are 'node' and 'edge'| Y |
+| item_type | The type that the entry represents, valid values are 'node' and 'edge' | Y |
+
+##### REST API Source
+| Property | Description | Required? |
+|----|----|----|
+| data_root | The root node within the JSON tree that contains the data to process | Y |
+
+##### LDAP Source
+| Property | Description | Required? |
+|----|----|----|
+| ldap_base_dn | The base DN to search from | Y |
 
 ### Connect
 This mode takes two existing BloodHound OpenGraph JSON files and creates new edges between nodes in the first graph (--graphA) and nodes in the second graph (--graphB).  
