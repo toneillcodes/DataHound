@@ -1,0 +1,62 @@
+[
+    {
+      "item_name": "LDAP Users",
+      "item_type": "node",
+      "source_type": "ldap",
+      "server": "ldap.server.edu",
+      "port": 636,
+      "bind_dn": "cn=Directory Manager",
+      "use_ssl": true,      
+      "ldap_base_dn": "ou=People,dc=example",
+      "ldap_search_filter": "(objectClass=person)",
+      "ldap_attributes": ["cn", "uid", "sn", "pwdChangedTime", "entryUUID"],
+      "item_kind": "LdapUser",
+      "id_location": "uid",
+      "column_mapping": {
+        "cn": "udcid",
+        "sn": "surname"
+      },
+      "output_columns": ["uid","udcid", "surname", "pwdChangedTime"]     
+    },
+    {
+      "item_name": "LDAP Groups",
+      "item_type": "node",
+      "source_type": "ldap",
+      "server": "ldap.server.edu",
+      "port": 636,
+      "bind_dn": "cn=Directory Manager",
+      "use_ssl": true,      
+      "ldap_base_dn": "ou=Groups,dc=example",
+      "ldap_search_filter": "(objectClass=groupOfNames)",
+      "ldap_attributes": ["cn", "member"],
+      "item_kind": "LdapGroup",
+      "id_location": "cn",
+      "column_mapping": {
+        "cn": "cn",
+        "member": "member"
+      },
+      "output_columns": ["cn", "member"]
+    },
+    {
+      "item_name": "LDAP Group Memberships",
+      "item_type": "edge",
+      "source_type": "ldap", 
+      "server": "ldap.server.edu",
+      "port": 636,
+      "bind_dn": "cn=Directory Manager",
+      "use_ssl": true,          
+      "ldap_base_dn": "ou=Groups,dc=example",
+      "ldap_search_filter": "(objectClass=groupOfNames)",
+      "ldap_attributes": ["cn", "member"],      
+      "edge_type": "static",
+      "edge_name": "LdapMemberOf",  
+      "source_column": "cn",        
+      "target_column": "member",
+      "target_column_id": "member",    
+      "target_is_multi_valued": true,
+      "end_value_resolve_uid_from_dn": true,
+      "column_mapping": {},
+      "output_columns": ["cn", "member"],
+      "clean_dn_attributes": ["member"]
+    }    
+]
