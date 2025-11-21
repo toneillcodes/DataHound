@@ -12,6 +12,11 @@ python DataHound.py collect \
   --source-kind MyCustomSource \
   --output my_transformed_graph.json
 ```
+#### Configuration Properties
+| Property | Description | Required? |
+|----|----|----|
+| item_type | The type that the entry represents, valid values are 'node' and 'edge'| Y |
+
 ### Connect
 This mode takes two existing BloodHound OpenGraph JSON files and creates new edges between nodes in the first graph (--graphA) and nodes in the second graph (--graphB).  
 * Correlation: Performs an outer merge using Pandas DataFrames to match nodes based on a specified property (--matchA and --matchB).  
