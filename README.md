@@ -39,7 +39,7 @@ $
 | Parameter | Argument Values | Required? | Description |
 |----|----|----|----|
 | --operation | collect, connect | Y | The primary function to execute. |
-| --output | (str) | Y | Output file path for the resulting graph JSON. (Default: output_graph.json) |
+| --output | filename | Y | Output file path for the resulting graph JSON. (Default: output_graph.json) |
 
 ### Collect Arguments
 | Parameter | Argument Values | Required? | Description |
