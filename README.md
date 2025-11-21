@@ -1,5 +1,5 @@
 # DataHound
-A data pipeline engine tha collects data from diverse sources and connects OpenGraph graphs.
+A data pipeline engine capable of aggregating data from diverse collection sources and connects OpenGraph graphs.
 ## Operations
 DataHound performs two operations: 
 * collect
