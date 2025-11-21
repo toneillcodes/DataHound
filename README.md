@@ -3,11 +3,11 @@ A data pipeline engine tha collects data from REST APIs and connects graphs.
 ## Operations
 DataHound performs to operations: **collect** and **connect**
 ### Collect
-This mode reads a JSON configuration file (--defs), calls the specified data source, extracts data, normalizes the data into a Pandas DataFrame, and transforms it into BloodHound OpenGraph nodes and edges
+This mode reads a JSON configuration file, calls the specified data source, extracts data, normalizes the data into a Pandas DataFrame, and transforms it into BloodHound OpenGraph nodes and edges
 ```
-python DataHound.py transform \
-  --defs /path/to/config.json \
-  --base-kind MyCustomSource \
+python DataHound.py collect \
+  --config /path/to/config.json \
+  --source-kind MyCustomSource \
   --output my_transformed_graph.json
 ```
 ### Connect
@@ -28,17 +28,30 @@ python DataHound.py connect \
 Help output.
 ```
 $ python DataHound.py
-usage: DataHound.py [-h] [--output OUTPUT] [--base-kind BASE_KIND] [--defs DEFS] [--graphA GRAPHA] [--matchA MATCHA] [--graphB GRAPHB] [--matchB MATCHB] [--edge-kind EDGE_KIND] [--file FILE]
-                       [--base-url BASE_URL]
-                       {transform,connect}
-DataHound.py: error: the following arguments are required: operation
+usage: DataHound.py [-h] --operation {collect,connect} --output OUTPUT [--source-kind SOURCE_KIND] [--config CONFIG] [--graphA GRAPHA] [--matchA MATCHA] [--graphB GRAPHB] [--matchB MATCHB]
+                       [--edge-kind EDGE_KIND]
+DataHound.py: error: the following arguments are required: --operation, --output
 $
 ```
 ### Global Arguments
-| Argument | Valid Values | Required? | Description |
+| Parameter | Argument Values | Required? | Description |
 |----|----|----|----|
-| operation | transform, connect | Y | The primary function to execute. |
+| --operation | collect, connect | Y | The primary function to execute. |
 | --output | (str) | Y | Output file path for the resulting graph JSON. (Default: output_graph.json) |
+
+### Collect Arguments
+| Parameter | Argument Values | Required? | Description |
+|----|----|----|----|
+| --source-kind | SOURCE_KIND | Y | The source_kind to use in the generated graph. |
+| --config | CONFIG | Y | Collection definitions and transformation definitions. |
+
+### Connect Arguments
+| Parameter | Argument Values | Required? | Description |
+|----|----|----|----|
+| --graphA | GRAPHA | Y | File name for Graph A to connect to Graph B. |
+| --matchA | MATCHA | Y | The name of the parameter in Graph A to match on |
+| --graphB | GRAPHB | Y | File name for Graph A to connect to Graph B. |
+| --matchB | MATCHB | Y | The name of the parameter in Graph B to match on |
 
 ## Examples
 - [BloodHound Collector](examples/bloodhound/README.md)
