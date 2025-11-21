@@ -1,5 +1,5 @@
 # DataHound
-A data pipeline engine tha collects data from REST APIs and connects graphs.
+A data pipeline engine tha collects data from diverse sources and connects OpenGraph graphs.
 ## Operations
 DataHound performs two operations: 
 * collect
