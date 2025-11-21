@@ -1,3 +1,4 @@
 pandas
 requests
+ldap3
 jsonpath-ng
