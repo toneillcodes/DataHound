@@ -271,7 +271,6 @@ def transform_edge(input_object: pd.DataFrame, config: dict):
     
     return edge_data
 
-
 # dictionary of transform functions
 TRANSFORMERS = {
     'node': transform_node,
