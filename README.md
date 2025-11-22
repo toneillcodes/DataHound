@@ -33,6 +33,15 @@ python DataHound.py --operation collect \
   --source-kind MyCustomSource \
   --output my_transformed_graph.json
 ```
+
+#### Collector List
+| Type | Description | Status |
+|----|----|----|
+| HTTP | Generic HTTP collector | Built |
+| LDAP | Generic LDAP collector | Built |
+| JSON File | Generic file-based JSON collector | Planned |
+| CSV File | Generic file-based CSV collector | Planned |
+
 * Review the [Collector Configuration](CollectorConfiguration.md) guide for details on the JSON file format and available properties (e.g., ```source_type```, ```column_mapping```).
 
 #### Arguments
@@ -40,8 +49,9 @@ python DataHound.py --operation collect \
 |----|----|----|----|
 | --operation | {collect,connect} | Y | The primary function to execute. |
 | --config | filename | Y | Collection definitions and transformation definitions. |
-| --source-kind | SOURCE_KIND | Y | The source_kind to use in the generated graph. |
+| --source-kind | source_kind | Y | The source_kind to use in the generated graph. |
 | --output | filename | Y | Output file path for the resulting graph JSON. (Default: output_graph.json) |
+
 
 ### ```connect```: **Graph Correlation and Linking**
 The connect operation takes two existing BloodHound OpenGraph JSON files (```--graphA``` and ```--graphB```) and creates new edges between nodes that share a common, correlatable property.
