@@ -1,5 +1,31 @@
-# Collector Configuration
-DataHound employs a modular architecture for collectors, ensuring a clean, organized, and highly scalable codebase. This approach encapsulates the logic for each specific data source into independent modules, which delivers two critical benefits: simplified maintenance (allowing changes to one collector without risking others) and maximum reusability (making it easy to adapt or share individual collector components).
+# Collector Configuration Guide
+The DataHound Collector Configuration file defines the what, where, and how of data extraction and normalization. This file contains an array of definitions, where each object within the array represents a single Collector Module designed to fetch a specific data set.
+
+## Configuration Structure
+The file must be a JSON array containing one or more collector definition objects:
+```
+[
+  {
+    // Collector Definition 1
+    "name": "ActiveDirectoryUsers",
+    "source_type": "ldap",
+    "source_details": {
+      // connection parameters
+    },
+    "column_mapping": {
+      // translation rules
+    },
+    "output_columns": [
+      // final schema definition
+    ],
+    "id_location": "objectGUID"
+  },
+  {
+    // Collector Definition 2
+    // ...
+  }
+]
+```
 
 ## Configuration Properties
 ### Common
