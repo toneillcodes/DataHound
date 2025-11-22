@@ -8,7 +8,7 @@ import os
 
 # Import the function from the new module
 from collector_modules.ldap_collector import fetch_ldap_data
-from collector_modules.rest_collector import call_rest_api
+from collector_modules.http_collector import call_http_endpoint
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
@@ -318,7 +318,7 @@ def main():
                     continue
 
                 # retrieve data from API endpoint defined in tranformation (config)
-                api_response = call_rest_api(config)
+                api_response = call_http_endpoint(config)
 
                 # todo: add debug output control with additional debug statements
                 #logging.debug(f"api_response: {api_response}") 

@@ -1,9 +1,11 @@
 import requests
+import logging
+import json
 
 # global requests Session object
 API_SESSION = requests.Session() 
 
-def call_rest_api(config):
+def call_http_endpoint(config):
     """
     Calls a REST API using the provided configuration and session.
     """
