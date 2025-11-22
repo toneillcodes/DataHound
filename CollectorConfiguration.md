@@ -7,25 +7,53 @@ The DataHound Collector Configuration file defines the what, where, and how of d
 The file must be a JSON array containing one or more collector definition objects:
 ```
 [
-  {
-    // Collector Definition 1
-    "name": "ActiveDirectoryUsers",
-    "source_type": "ldap",
-    "source_details": {
-      // connection parameters
+    // Collector 1: Defines how to collect User data
+    {
+        "item_type": "node",
+        "item_name": "Users",
+        "item_description": "Users found in the BloodHound instance",
+        "source_type": "url",
+        "source_url": "http://127.0.0.1:8080/api/v2/bloodhound-users",
+        "source_auth_type": "bearer-token",
+        "source_auth_token": "key.key.key",
+        "data_root": "users",
+        "column_mapping": {
+            "id": "id",
+            "principal_name": "name",
+            "last_login": "last_login"
+        },
+        "output_columns": [            
+            "id",
+            "name",
+            "last_login"
+        ],
+        "id_location": "id",        		
+        "item_kind": "BHUser",
+		    "source_name": "bloodhound-users"
     },
-    "column_mapping": {
-      // translation rules
+    // Collector 2: Defines how to collect Role data
+    {
+        "item_type": "node",
+        "item_name": "Roles",
+        "item_description": "Roles found in the BloodHound instance",
+        "source_type": "url",
+        "source_url": "http://127.0.0.1:8080/api/v2/roles",
+        "source_auth_type": "bearer-token",
+        "source_auth_token": "key.key.key",
+        "data_root": "roles",  
+        "column_mapping": {
+            "name": "name",
+            "description": "description"
+        },
+        "output_columns": [
+            "name",
+            "description"
+        ],                            
+        "id_location": "name",        		
+        "item_kind": "BHRole",
+		    "source_name": "roles"
     },
-    "output_columns": [
-      // final schema definition
-    ],
-    "id_location": "objectGUID"
-  },
-  {
-    // Collector Definition 2
-    // ...
-  }
+    ...
 ]
 ```
 

@@ -16,11 +16,11 @@
         "output_columns": [            
             "id",
             "name",
-            "last"
+            "last_login"
         ],
         "id_location": "id",        		
         "item_kind": "BHUser",
-		    "source_name": "bloodhound-users"
+		"source_name": "bloodhound-users"
     },
     {
         "item_type": "node",
@@ -64,7 +64,7 @@
         ],                            
         "id_location": "name",        		
         "item_kind": "BHPermission",
-		    "source_name": "permissions"
+	    "source_name": "permissions"
     },
     {
         "item_type": "edge",
