@@ -5,7 +5,7 @@ A modular data pipeline engine built to extract, normalize, and correlate data i
 DataHound requires Python 3.x and Pandas.
 1. Clone the repository
 ```
-git clone https://github.com/toneillcodes/DataHound/DataHound.git
+git clone https://github.com/toneillcodes/DataHound.git
 cd DataHound
 ```
 
@@ -28,7 +28,7 @@ The collect operation extracts raw data from external sources (APIs, databases, 
 
 #### Example Usage
 ```
-python DataHound.py collect \
+python DataHound.py --operation collect \
   --config /path/to/config.json \
   --source-kind MyCustomSource \
   --output my_transformed_graph.json
@@ -38,8 +38,8 @@ python DataHound.py collect \
 #### Arguments
 | Parameter | Argument Values | Required? | Description |
 |----|----|----|----|
-| --operation | collect, connect | Y | The primary function to execute. |
-| --config | CONFIG | Y | Collection definitions and transformation definitions. |
+| --operation | {collect,connect} | Y | The primary function to execute. |
+| --config | filename | Y | Collection definitions and transformation definitions. |
 | --source-kind | SOURCE_KIND | Y | The source_kind to use in the generated graph. |
 | --output | filename | Y | Output file path for the resulting graph JSON. (Default: output_graph.json) |
 
@@ -53,22 +53,22 @@ The connect operation takes two existing BloodHound OpenGraph JSON files (```--g
 
 #### Example Usage
 ```
-python DataHound.py connect \
-  --graphA sample-app-users.json \
+python DataHound.py --operation connect \
+  --graphA sample-app.json \
   --matchA uid \
-  --graphB other-app-users.json \
-  --matchB id \
+  --graphB other-app.json \
+  --matchB username \
   --edge-kind MapsTo \
   --output new_connections.json
 ```
 #### Arguments
 | Parameter | Argument Values | Required? | Description |
 |----|----|----|----|
-| --operation | collect, connect | Y | The primary function to execute. |
-| --graphA | GRAPHA | Y | File name for Graph A to connect to Graph B. |
-| --matchA | MATCHA | Y | The name of the parameter in Graph A to match on |
-| --graphB | GRAPHB | Y | File name for Graph A to connect to Graph B. |
-| --matchB | MATCHB | Y | The name of the parameter in Graph B to match on |
+| --operation | {collect,connect} | Y | The primary function to execute. |
+| --graphA | filename | Y | File name for Graph A to connect to Graph B. |
+| --matchA | NA | Y | The name of the parameter in Graph A to match on |
+| --graphB | filename | Y | File name for Graph A to connect to Graph B. |
+| --matchB | NA | Y | The name of the parameter in Graph B to match on |
 | --output | filename | Y | Output file path for the resulting graph JSON. (Default: output_graph.json) |
 
 ## Examples
@@ -79,6 +79,6 @@ Explore our practical examples to see DataHound in action:
 ## Todo & Future Features
 * Debug or verbose messages with logging
 * Support for encrypted secrets
-* Basic authentication web support
-* File based input using CSV or JSON formats
+* Basic authentication HTTP collector
+* File based collectors using CSV and JSON formats
 * Robust error handling

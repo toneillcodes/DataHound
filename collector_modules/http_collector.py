@@ -7,7 +7,7 @@ API_SESSION = requests.Session()
 
 def call_http_endpoint(config):
     """
-    Calls a REST API using the provided configuration and session.
+    Calls a HTTP endpoint using the provided configuration and session.
     """
     request_url = config.get('source_url')
     request_auth_token = config.get('source_auth_token')
