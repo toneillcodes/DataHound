@@ -2,7 +2,6 @@
 A data pipeline engine for the BloodHound OpenGraph framework.
 
 ## Operations
-DataHound performs two operations: 
 * **collect**: extracts raw data from external sources, performs initial transformations, and produces normalized node and edge data in the OpenGraph format.
 * **connect**: correlates two existing graphs by finding matching node properties between them and then creates new edges based on those matches to link the two data sets together.
 
@@ -16,21 +15,8 @@ python DataHound.py collect \
   --output my_transformed_graph.json
 ```
 
-#### Configuration Properties
-##### Common
-| Property | Description | Required? |
-|----|----|----|
-| item_type | The type that the entry represents, valid values are 'node' and 'edge' | Y |
-
-##### REST API Source
-| Property | Description | Required? |
-|----|----|----|
-| data_root | The root node within the JSON tree that contains the data to process | Y |
-
-##### LDAP Source
-| Property | Description | Required? |
-|----|----|----|
-| ldap_base_dn | The base DN to search from | Y |
+* The collect operation requires a JSON configuration file of collection definitions
+* Review the [Collector Configuration](CollectorConfiguration.md) guide for a summary of the file format and the properties that can be used
 
 ### Connect
 This mode takes two existing BloodHound OpenGraph JSON files and creates new edges between nodes in the first graph (--graphA) and nodes in the second graph (--graphB).  
