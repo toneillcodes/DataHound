@@ -10,12 +10,12 @@
         "data_root": "users",
         "column_mapping": {
             "id": "id",
-            "principal_name": "username",
-            "last_login": "last"
+            "principal_name": "name",
+            "last_login": "last_login"
         },
         "output_columns": [            
             "id",
-            "username",
+            "name",
             "last"
         ],
         "id_location": "id",        		
