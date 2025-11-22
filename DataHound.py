@@ -1,115 +1,17 @@
 from jsonpath_ng.ext.parser import parse as jpng_parse
-from ldap3.core.exceptions import LDAPException
 import pandas as pd
-import requests
 import argparse
 import logging
-import ldap3
 import json
 import sys
 import os
-import re
 
-# global requests Session object
-API_SESSION = requests.Session() 
+# Import the function from the new module
+from collector_modules.ldap_collector import fetch_ldap_data
+from collector_modules.rest_collector import call_rest_api
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
-
-# helper function
-def parse_uid_from_dn(dn_string):
-    """
-    Extracts the value of the 'uid' attribute from a full DN string.
-    Example: 'uid=user1,ou=People,dc=example' -> 'user1'
-    """
-    if not dn_string:
-        return None
-    
-    # Regular expression to find 'uid=' followed by any characters until the next comma or end of string
-    match = re.match(r'uid=([^,]+)', dn_string, re.IGNORECASE)
-    if match:
-        return match.group(1)
-    
-    # Add logic here for other common identifiers like 'cn' if needed
-    return dn_string # Return original if parsing fails
-
-def fetch_ldap_data(item_config: dict, bind_password: str) -> list or None:
-    """
-    Connects to LDAP, performs a search based on item_config, and returns raw entries.
-    """
-    server_address = item_config['server']
-    port = item_config['port']
-    use_ssl = item_config.get('use_ssl', False)
-    bind_dn = item_config['bind_dn']
-    base_dn = item_config['ldap_base_dn']
-    search_filter = item_config['ldap_search_filter']
-    attributes = item_config['ldap_attributes']
-
-    server = ldap3.Server(server_address, port=port, use_ssl=use_ssl, get_info=ldap3.ALL)
-
-    try:
-        conn = ldap3.Connection(server, user=bind_dn, password=bind_password, auto_bind=True)
-
-        if not conn.bound:
-            logging.error(f"LDAP ERROR: Failed to bind to LDAP server as {bind_dn}")
-            return None
-
-        logging.info(f"Searching for data in: {base_dn} with filter: {search_filter}")
-        conn.search(
-            search_base=base_dn,
-            search_filter=search_filter,
-            search_scope=ldap3.SUBTREE,
-            attributes=attributes
-        )
-        
-        # does this item have any DN values to be trimmed?
-        clean_dn = item_config.get('clean_dn_attributes', [])
-        
-        results = []
-        
-        for entry in conn.entries:
-            ldap_attributes = entry.entry_attributes 
-            
-            row = {}
-            for attr, values in ldap_attributes.items():
-                
-                # Check if values is not an empty list
-                if values and isinstance(values, list):
-                    
-                    # Check if this attribute is configured for DN cleanup
-                    if attr in clean_dn: 
-                        # apply DN cleanup to all values in the list
-                        cleaned_values = [parse_uid_from_dn(v) for v in values]
-                        # what should we do with failures?
-                        values_to_store = [v for v in cleaned_values if v]
-                    else:
-                        values_to_store = values
-                        
-                    # single/multi-value handling logic
-                    if len(values_to_store) == 1:
-                        # single value, grab the value
-                        row[attr] = values_to_store[0]
-                    else:
-                        # multi-valued, store the list for pandas.explode/normalize later
-                        row[attr] = values_to_store
-                else:
-                    # set a value for empty attributes
-                    row[attr] = None
-            
-            results.append(row)
-
-        logging.info(f"Found {len(results)} LDAP entries.")
-        return results
-
-    except LDAPException as e:
-        logging.error(f"LDAP Error: {e}")
-        return None
-    except Exception as e:
-        logging.error(f"An unexpected error occurred during LDAP fetch: {e}")
-        return None
-    finally:
-        if 'conn' in locals() and conn.bound:
-            conn.unbind()
 
 def connect_graphs(graph_a: str, match_a: str, graph_b: str, match_b: str, edge_kind: str, output_path: str) -> None:
     logging.info(f"Correlating {graph_a} and {graph_b}.")
@@ -124,17 +26,18 @@ def connect_graphs(graph_a: str, match_a: str, graph_b: str, match_b: str, edge_
         df1 = pd.json_normalize(graph_a_data['graph']['nodes'])
         df2 = pd.json_normalize(graph_b_data['graph']['nodes'])
 
-        # Clean Keys (String conversion + Trim whitespace)
+        # clean keys (string conversion + trim whitespace)
+        ## todo: change this so that it doesn't have to be under 'properties'
         match_a_path = f'properties.{match_a}'
         match_b_path = f'properties.{match_b}'
         df1[match_a_path] = df1[match_a_path].astype(str).str.strip()
         df2[match_b_path] = df2[match_b_path].astype(str).str.strip()
 
-        # Select relevant columns
+        # select relevant columns
         df1_subset = df1[['id', match_a_path]]
         df2_subset = df2[['id', match_b_path]]
 
-        # Perform Outer Merge
+        # perform outer merge using the matchA and matchB fields
         merged_df = pd.merge(
             df1_subset,
             df2_subset,
@@ -146,6 +49,7 @@ def connect_graphs(graph_a: str, match_a: str, graph_b: str, match_b: str, edge_
 
         # matched nodes
         success_df = merged_df[merged_df['_merge'] == 'both'].copy()
+        # remap column names - now success_output is what we want to use to build the graph
         success_output = success_df.rename(columns={'id_x': 'start_value', 'id_y': 'end_value'})[['start_value', 'end_value']]
 
         # failures (Graph A Orphans)
@@ -162,10 +66,10 @@ def connect_graphs(graph_a: str, match_a: str, graph_b: str, match_b: str, edge_
             match_b_path: 'missing_lookup_key'
         })[['failed_node_id', 'missing_lookup_key']]
 
+        # template graph structure
         connected_graph = {
             "graph": {
-                "edges": [                    
-                ]
+                "edges": []
             }
         }
 
@@ -184,6 +88,11 @@ def connect_graphs(graph_a: str, match_a: str, graph_b: str, match_b: str, edge_
         ]
 
         connected_graph['graph']['edges'].extend(edges)
+
+        # write output
+        with open(output_path, 'w') as f:
+            json.dump(connected_graph, f, indent=4)
+            logging.info(f"Success! Output written to: {output_path}")
         
         # report of errors and summary stats
         processing_report = {
@@ -197,14 +106,9 @@ def connect_graphs(graph_a: str, match_a: str, graph_b: str, match_b: str, edge_
                 "unmatched_in_graph_b": graphb_fail_output.to_dict(orient='records')             
             }            
         }
+        # todo: dump this to a summary.json file or a central log file, the output gets long with real datasets
+        #logging.info(f"Outputting processing_report summary:\n {json.dumps(processing_report, indent=4)}")        
 
-        # write output
-        with open(output_path, 'w') as f:
-            json.dump(connected_graph, f, indent=4)
-            logging.info(f"Success! Output written to: {output_path}")
-        
-        # todo: dump this to a summary.json file or a central log file
-        logging.info(f"Outputting processing_report summary:\n {json.dumps(processing_report, indent=4)}")        
         return True
 
     except KeyError as e:
@@ -216,58 +120,6 @@ def connect_graphs(graph_a: str, match_a: str, graph_b: str, match_b: str, edge_
     except Exception as e:
         logging.error(f"Connect graphs: An unexpected error occurred: {e}")
         return False
-
-def read_config_file(file_path):
-    """
-    Reads a JSON file and returns its content.
-    """
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"Error: The file '{file_path}' was not found.")
-        
-    try:
-        with open(file_path, 'r') as file:
-            data = json.load(file)
-    except json.JSONDecodeError as e:
-        raise json.JSONDecodeError(f"Error decoding JSON in '{file_path}': {e.msg}", e.doc, e.pos)
-
-    if not isinstance(data, list):
-        logging.warning(f"The file '{file_path}' content is not a list, but a {type(data).__name__}. Treating as single config.")
-        return [data] if isinstance(data, dict) else []
-        
-    return data
-
-def call_rest_api(config):
-    """
-    Calls a REST API using the provided configuration and session.
-    """
-    request_url = config.get('source_url')
-    request_auth_token = config.get('source_auth_token')
-    source_auth_type = config.get('source_auth_type')
-
-    req_headers = {"Accept": "application/json"}
-    
-    if source_auth_type == "bearer-token" and request_auth_token:
-        req_headers["Authorization"] = f"Bearer {request_auth_token}"
-    
-    try:
-        # use the global session for connection pooling - is this necessary?
-        response = API_SESSION.get(request_url, headers=req_headers, timeout=30)
-        response.raise_for_status()
-        json_response = response.json()
-        return json_response
-
-    except requests.exceptions.RequestException as e:
-        logging.error(f"[API ERROR] Failed to fetch {request_url}: {e}")
-        return None
-    except json.JSONDecodeError:
-        logging.error(f"[API ERROR] Failed to decode JSON response from {request_url}.")
-        # response should be defined here, as raise_for_status() and .json() failed
-        # check if response is available before accessing .text
-        if 'response' in locals() and hasattr(response, 'text'):
-             logging.error(f"Response text: {response.text[:200]}...")
-        else:
-             logging.error("Response object was not available for text logging.")
-        return None
 
 def transform_node(input_object: pd.DataFrame, config: dict, source_kind: str):
     """
@@ -294,7 +146,6 @@ def transform_node(input_object: pd.DataFrame, config: dict, source_kind: str):
 
     # convert dataframe to a dictionary
     records = df_transformed.to_dict('records')
-
     #logging.debug(f"records: {records}") 
 
     # construct node objects from transformed dataframe
@@ -368,6 +219,25 @@ def transform_edge(input_object: pd.DataFrame, config: dict):
     ]
     
     return edge_data
+
+def read_config_file(file_path):
+    """
+    Reads a JSON file and returns its content.
+    """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Error: The file '{file_path}' was not found.")
+        
+    try:
+        with open(file_path, 'r') as file:
+            data = json.load(file)
+    except json.JSONDecodeError as e:
+        raise json.JSONDecodeError(f"Error decoding JSON in '{file_path}': {e.msg}", e.doc, e.pos)
+
+    if not isinstance(data, list):
+        logging.warning(f"The file '{file_path}' content is not a list, but a {type(data).__name__}. Treating as single config.")
+        return [data] if isinstance(data, dict) else []
+        
+    return data
 
 # dictionary of transform functions
 TRANSFORMERS = {
@@ -450,6 +320,7 @@ def main():
                 # retrieve data from API endpoint defined in tranformation (config)
                 api_response = call_rest_api(config)
 
+                # todo: add debug output control with additional debug statements
                 #logging.debug(f"api_response: {api_response}") 
                 
                 if api_response is None:
@@ -462,9 +333,12 @@ def main():
                     logging.error(f"'data_root' element is missing for item {item_name}. Skipping.")
                     continue
                     
+                # create a jsonpath expression to find all matches for the data root element recursively             
                 jsonpath_expression = jpng_parse(f'$..{data_root_element}')
+                # check the API response for jsonpath_expression
                 path_matches = jsonpath_expression.find(api_response)
                 
+                # no matches
                 if not path_matches:
                     logging.error(f"Could not find data root element: {data_root_element} for item {item_name}. Skipping.")
                     continue
@@ -478,6 +352,7 @@ def main():
                 if ldap_data is None:
                     logging.warning(f"Skipping item {item_name} due to failed LDAP connection/search.")
                     continue
+                # something was returned, point data_object to it for processing
                 data_object = ldap_data                 
             else:
                 logging.warning(f"Source type '{source_type}' is not yet implemented. Skipping item {item_name}.")
