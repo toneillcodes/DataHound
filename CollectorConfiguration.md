@@ -1,4 +1,6 @@
 # Collector Configuration Guide
+DataHound employs a modular architecture for collectors, ensuring a clean, organized, and highly scalable codebase. This approach encapsulates the logic for each specific data source into independent modules, which delivers two critical benefits: simplified maintenance (allowing changes to one collector without risking others) and maximum reusability (making it easy to adapt or share individual collector components).
+
 The DataHound Collector Configuration file defines the what, where, and how of data extraction and normalization. This file contains an array of definitions, where each object within the array represents a single Collector Module designed to fetch a specific data set.
 
 ## Configuration Structure

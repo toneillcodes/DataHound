@@ -1,8 +1,6 @@
 # DataHound
 A modular data pipeline engine built to extract, normalize, and correlate data into the BloodHound OpenGraph framework.
 
-DataHound employs a modular architecture for collectors, ensuring a clean, organized, and highly scalable codebase. This approach encapsulates the logic for each specific data source into independent modules, which delivers two critical benefits: simplified maintenance (allowing changes to one collector without risking others) and maximum reusability (making it easy to adapt or share individual collector components).
-
 ## Quick Start & Prerequisites
 DataHound requires Python 3.x and Pandas.
 1. Clone the repository
