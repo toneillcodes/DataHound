@@ -72,9 +72,12 @@ python DataHound.py --operation connect \
 | --output | filename | Y | Output file path for the resulting graph JSON. (Default: output_graph.json) |
 
 ## Examples
-Explore our practical examples to see DataHound in action:
-- [BloodHound Collector](examples/bloodhound/README.md)
-- [LDAP Collector](examples/ldap/README.md)
+Explore  practical examples to see DataHound in action:
+### Collect Exampls
+- [BloodHound Collector](examples/collection/bloodhound/README.md)
+- [LDAP Collector](examples/collection/ldap/README.md)
+### Connect Examples
+- Connecting Two Sample OG Graphs with a Static Edge
 
 ## Todo & Future Features
 * Debug or verbose messages with logging
