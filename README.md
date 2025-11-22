@@ -1,17 +1,21 @@
 # DataHound
-A data pipeline engine capable of aggregating data from diverse collection sources and connects OpenGraph graphs.
+A data pipeline engine for the BloodHound OpenGraph framework.
+
 ## Operations
 DataHound performs two operations: 
-* collect
-* connect
+* **collect**: extracts raw data from external sources, performs initial transformations, and produces normalized node and edge data in the OpenGraph format.
+* **connect**: correlates two existing graphs by finding matching node properties between them and then creates new edges based on those matches to link the two data sets together.
+
 ### Collect
 This mode reads a JSON configuration file, calls the specified data source, extracts data, normalizes the data into a Pandas DataFrame, and transforms it into BloodHound OpenGraph nodes and edges
+
 ```
 python DataHound.py collect \
   --config /path/to/config.json \
   --source-kind MyCustomSource \
   --output my_transformed_graph.json
 ```
+
 #### Configuration Properties
 ##### Common
 | Property | Description | Required? |
@@ -33,6 +37,7 @@ This mode takes two existing BloodHound OpenGraph JSON files and creates new edg
 * Correlation: Performs an outer merge using Pandas DataFrames to match nodes based on a specified property (--matchA and --matchB).  
 * Edge Creation: For successful matches, it generates a new edge object with the specified kind (--edge-kind) connecting the matched nodes.  
 * Reporting: Outputs the generated edges and a summary report of matched nodes and "orphans" (nodes that did not find a match in the other graph).
+
 ```
 python DataHound.py connect \
   --graphA sample-app-users.json \
@@ -42,6 +47,7 @@ python DataHound.py connect \
   --edge-kind MapsTo \
   --output new_connections.json
 ```
+
 ## Usage
 Help output.
 ```
@@ -51,6 +57,7 @@ usage: DataHound.py [-h] --operation {collect,connect} --output OUTPUT [--source
 DataHound.py: error: the following arguments are required: --operation, --output
 $
 ```
+
 ### Global Arguments
 | Parameter | Argument Values | Required? | Description |
 |----|----|----|----|
@@ -73,7 +80,8 @@ $
 
 ## Examples
 - [BloodHound Collector](examples/bloodhound/README.md)
-- LDAP Collector
+- [LDAP Collector](examples/ldap/README.md)
+
 ## Todo
 * Debug or verbose messages with logging
 * Support for encrypted secrets
