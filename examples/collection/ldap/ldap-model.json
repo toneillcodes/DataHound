@@ -1,0 +1,74 @@
+{
+  "custom_types": {
+    "LdapPerson": {
+      "icon": {
+        "type": "font-awesome",
+        "name": "user",
+        "color": "#4D93D9"
+      }
+    },
+    "LdapGroup": {
+      "icon": {
+        "type": "font-awesome",
+        "name": "user-group",
+        "color": "#47D359"
+      }
+    },
+    "LdapOU": {
+      "icon": {
+        "type": "font-awesome",
+        "name": "building",
+        "color": "#FFFF00"
+      }
+    },
+    "LdapOrg": {
+      "icon": {
+        "type": "font-awesome",
+        "name": "building-columns",
+        "color": "#BE5014"
+      }
+    }
+  },
+  "custom_edges": {
+    "LdapContainedIn": {
+      "style": {
+        "color": "#4CAF50",
+        "line": "solid",
+        "width": 2
+      },
+      "label": "Contained In"
+    },
+    "LdapMemberOf": {
+      "style": {
+        "color": "#FF5722",
+        "line": "solid",
+        "width": 2
+      },
+      "label": "Member Of"
+    },
+    "LdapBelongsTo": {
+      "style": {
+        "color": "#607D8B",
+        "line": "dashed",
+        "width": 2
+      },
+      "label": "Belongs To"
+    },
+    "LdapMapsTo": {
+      "style": {
+        "color": "#FFC107",
+        "line": "dotted",
+        "width": 1
+      },
+      "label": "Maps To"
+    }
+  },
+  "metadata": {
+    "version": "1.0",
+    "description": "OpenLDAP Security model for BloodHound",
+    "author": "Tom O'Neill",
+    "created": "202510",
+    "node_prefix": "Ldap",
+    "edge_prefix": "Ldap"
+  }
+}
