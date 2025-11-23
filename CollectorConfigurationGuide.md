@@ -1,6 +1,4 @@
 # Collector Configuration Guide
-DataHound employs a modular architecture for collectors, ensuring a clean, organized, and highly scalable codebase. This approach encapsulates the logic for each specific data source into independent modules, which delivers two critical benefits: simplified maintenance (allowing changes to one collector without risking others) and maximum reusability (making it easy to adapt or share individual collector components).
-
 The DataHound Collector Configuration file defines the what, where, and how of data extraction and normalization. This file contains an array of definitions, where each object within the array represents a single Collector Module designed to fetch a specific data set.
 
 ## Configuration Structure
@@ -29,7 +27,7 @@ The file must be a JSON array containing one or more collector definition object
         ],
         "id_location": "id",        		
         "item_kind": "BHUser",
-		    "source_name": "bloodhound-users"
+		"source_name": "bloodhound-users"
     },
     // Collector 2: Defines how to collect Role data
     {
@@ -51,7 +49,7 @@ The file must be a JSON array containing one or more collector definition object
         ],                            
         "id_location": "name",        		
         "item_kind": "BHRole",
-		    "source_name": "roles"
+		"source_name": "roles"
     },
     ...
 ]
@@ -69,9 +67,10 @@ The file must be a JSON array containing one or more collector definition object
 | output_columns | Output columns are filtered down to the list defined in this property. | NA | N |
 | id_location | The name of the raw data field that contains the 'id' value. | NA | N |
 | item_kind | The 'kind' value to use for the item in the graph output. | NA | N |
-| source_name | A value or string that identifies the source of the data and gets added to the graph output for information purposes. | NA | N |
+| source_name | A value or string that identifies the source of the data and gets added to the graph output for context. | NA | N |
 
 ### HTTP Source
+```source_type: url```
 | Property | Description | Valid Values | Required? |
 |----|----|----|----|
 | source_url | The URL to call | NA | Y |
@@ -79,10 +78,17 @@ The file must be a JSON array containing one or more collector definition object
 | source_auth_type | Identifies the authentication type for the request. | Valid values are 'bearer-token'. Y |
 | source_auth_token | Token for the HTTP request. Required when source_auth_type is 'bearer-token'. | NA | N |
 | data_root | The name of the data element that contains the root JSON object to process. | NA | Y |
-* Todo: rename these consistently
+* TODO: rename these consistently
 
 ### LDAP Source
+```source_type: ldap```
 | Property | Description | Valid Values | Required? |
 |----|----|----|----|
-| ldap_base_dn | The base DN to search from. | NA | Y |
-* Todo: rename these consistently
+| server | LDAP server name | NA | Y |
+| port | LDAP server port | NA | Y |
+| bind_dn | LDAP connection username | NA | Y |
+| use_ssl | Flag to enable or disable SSL on the LDAP connection | {True, False} | N |
+| ldap_base_dn | The base DN to serch from. | NA | Y |
+| ldap_search_filter | The search filter to use. | NA | Y |
+| ldap_attributes | A list of attributes to retrieve from LDAP. | NA | Y |
+* TODO: rename these consistently 

@@ -34,15 +34,15 @@ python DataHound.py --operation collect \
   --output my_transformed_graph.json
 ```
 
-#### Collector List
-| Type | Description | Status |
-|----|----|----|
-| HTTP | Generic HTTP collector | Built |
-| LDAP | Generic LDAP collector | Built |
-| JSON File | Generic file-based JSON collector | Planned |
-| CSV File | Generic file-based CSV collector | Planned |
+#### Supported Collectors
+| Type | Description |
+|----|----|
+| HTTP | Generic HTTP collector |
+| LDAP | Generic LDAP collector |
 
-* Review the [Collector Configuration](CollectorConfiguration.md) guide for details on the JSON file format and available properties (e.g., ```source_type```, ```column_mapping```).
+* Review the [Collector Guide](CollectorGuide.md) for an expanded list of collectors in development.
+* Review the [Collector Configuration Guide](CollectorConfigurationGuide.md) for details on the JSON file format and available properties for existing collectors (e.g., ```source_type```, ```column_mapping```).
+
 
 #### Arguments
 | Parameter | Argument Values | Required? | Description |
@@ -51,7 +51,6 @@ python DataHound.py --operation collect \
 | --config | filename | Y | Collection definitions and transformation definitions. |
 | --source-kind | source_kind | Y | The source_kind to use in the generated graph. |
 | --output | filename | Y | Output file path for the resulting graph JSON. (Default: output_graph.json) |
-
 
 ### ```connect```: **Graph Correlation and Linking**
 The connect operation takes two existing BloodHound OpenGraph JSON files (```--graphA``` and ```--graphB```) and creates new edges between nodes that share a common, correlatable property.
