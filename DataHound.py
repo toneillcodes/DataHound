@@ -1,19 +1,37 @@
 from jsonpath_ng.ext.parser import parse as jpng_parse
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import pandas as pd
 import argparse
+import requests
 import logging
+import getpass
 import json
 import sys
 import os
 
-# Import the function from the new module
-from collector_modules.ldap_collector import fetch_ldap_data
-from collector_modules.http_collector import call_http_endpoint
+# import collector modules
+from collector_modules.ldap_collector import collect_ldap_data
+from collector_modules.http_collector import collect_http_data
 
-# Configure logging
+# configure logging
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
+# configure global session with retries
+API_SESSION = requests.Session()
+retry_strategy = Retry(
+    total=3,                # Retry up to 3 times
+    backoff_factor=1,       # Wait 1s, then 2s, then 4s between retries
+    status_forcelist=[429, 500, 502, 503, 504],  # Retry on these HTTP codes
+)
+API_SESSION.mount("https://", HTTPAdapter(max_retries=retry_strategy))
+API_SESSION.mount("http://", HTTPAdapter(max_retries=retry_strategy))
+
 def connect_graphs(graph_a: str, match_a: str, graph_b: str, match_b: str, edge_kind: str, output_path: str) -> None:
+    """
+    Loads the JSON from two OG files and correlates the data using the specified matching fields.
+    An OG JSON to connect matching nodes is generated, along with a summary of entries from either side without a match.
+    """
     logging.info(f"Correlating {graph_a} and {graph_b}.")
 
     try:
@@ -222,7 +240,7 @@ def transform_edge(input_object: pd.DataFrame, config: dict):
 
 def read_config_file(file_path):
     """
-    Reads a JSON file and returns its content.
+    Reads a JSON file and returns its content, hopefully.
     """
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Error: The file '{file_path}' was not found.")
@@ -304,7 +322,12 @@ def main():
         for config in config_list:
             item_name = config.get('item_name')
             item_type = config.get('item_type')
+
             logging.info(f"Processing Item: {item_name} (Type: {item_type})")
+
+            if not config.get('source_type'):
+                logging.error(f"'source_type' is required. Skipping.")
+                continue
 
             source_type = config.get('source_type')
             if source_type == "url":
@@ -318,7 +341,7 @@ def main():
                     continue
 
                 # retrieve data from API endpoint defined in tranformation (config)
-                api_response = call_http_endpoint(config)
+                api_response = collect_http_data(config, API_SESSION)
 
                 # todo: add debug output control with additional debug statements
                 #logging.debug(f"api_response: {api_response}") 
@@ -346,9 +369,9 @@ def main():
                 first_match = path_matches[0]
                 data_object = first_match.value
             elif source_type == "ldap":
-                ldap_password = input("LDAP Bind Password: ")
+                ldap_password = getpass.getpass("LDAP Bind Password: ")
                 # retrieve data from ldap
-                ldap_data = fetch_ldap_data(config, ldap_password)
+                ldap_data = collect_ldap_data(config, ldap_password)
                 if ldap_data is None:
                     logging.warning(f"Skipping item {item_name} due to failed LDAP connection/search.")
                     continue
@@ -389,8 +412,8 @@ def main():
             logging.info(f"Writing graph to output file: {output_file}")
             try:      
                 with open(output_file, 'w') as f:
-                    json.dump(graph_structure, f, indent=4)         
-                logging.info(f"Wrote graph to {output_file}")
+                    json.dump(graph_structure, f, indent=4, default=str)         
+                logging.info(f"Successfully Wrote graph to {output_file}")
             except Exception as e: 
                 logging.error(f"Failed to write output file: {output_file}. Error: {e}")
 

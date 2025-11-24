@@ -1,9 +1,11 @@
 from ldap3.core.exceptions import LDAPException
 import logging
 import ldap3
+import json
+import uuid
 import re
 
-# helper function
+# Helper function
 def parse_uid_from_dn(dn_string):
     """
     Extracts the value of the 'uid' attribute from a full DN string.
@@ -12,25 +14,26 @@ def parse_uid_from_dn(dn_string):
     if not dn_string:
         return None
     
-    # Regular expression to find 'uid=' followed by any characters until the next comma or end of string
     match = re.match(r'uid=([^,]+)', dn_string, re.IGNORECASE)
     if match:
         return match.group(1)
     
-    # Add logic here for other common identifiers like 'cn' if needed
-    return dn_string # Return original if parsing fails
+    return dn_string  # Return original if parsing fails
 
-def fetch_ldap_data(item_config: dict, bind_password: str) -> list or None: # type: ignore
+def collect_ldap_data(item_config: dict, bind_password: str, correlation_id=None) -> list:
     """
     Connects to LDAP, performs a search based on item_config, and returns raw entries.
+    Adds structured logging and correlation ID for traceability.
     """
+    correlation_id = correlation_id or str(uuid.uuid4())
+
     server_address = item_config['server']
     port = item_config['port']
-    use_ssl = item_config.get('use_ssl', False)
+    use_ssl = item_config.get('use_ssl', True)
     bind_dn = item_config['bind_dn']
     base_dn = item_config['ldap_base_dn']
     search_filter = item_config['ldap_search_filter']
-    attributes = item_config['ldap_attributes']
+    ldap_attributes = item_config['ldap_attributes']
 
     server = ldap3.Server(server_address, port=port, use_ssl=use_ssl, get_info=ldap3.ALL)
 
@@ -38,61 +41,92 @@ def fetch_ldap_data(item_config: dict, bind_password: str) -> list or None: # ty
         conn = ldap3.Connection(server, user=bind_dn, password=bind_password, auto_bind=True)
 
         if not conn.bound:
-            logging.error(f"LDAP ERROR: Failed to bind to LDAP server as {bind_dn}")
+            logging.error(json.dumps({
+                "event": "LDAP_BIND_ERROR",
+                "correlation_id": correlation_id,
+                "server": server_address,
+                "bind_dn": bind_dn,
+                "message": "Failed to bind to LDAP server"
+            }, default=str))
             return None
 
-        logging.info(f"Searching for data in: {base_dn} with filter: {search_filter}")
-        conn.search(
+        logging.info(json.dumps({
+            "event": "LDAP_SEARCH_START",
+            "correlation_id": correlation_id,
+            "base_dn": base_dn,
+            "search_filter": search_filter,
+            "attributes": ldap_attributes
+        }, default=str))
+
+        search_status = conn.search(
             search_base=base_dn,
             search_filter=search_filter,
             search_scope=ldap3.SUBTREE,
-            attributes=attributes
+            attributes=ldap_attributes
         )
-        
-        # does this item have any DN values to be trimmed?
-        clean_dn = item_config.get('clean_dn_attributes', [])
-        
-        results = []
-        
-        for entry in conn.entries:
-            ldap_attributes = entry.entry_attributes 
-            
-            row = {}
-            for attr, values in ldap_attributes.items():
-                
-                # Check if values is not an empty list
-                if values and isinstance(values, list):
-                    
-                    # Check if this attribute is configured for DN cleanup
-                    if attr in clean_dn: 
-                        # apply DN cleanup to all values in the list
-                        cleaned_values = [parse_uid_from_dn(v) for v in values]
-                        # what should we do with failures?
-                        values_to_store = [v for v in cleaned_values if v]
-                    else:
-                        values_to_store = values
-                        
-                    # single/multi-value handling logic
-                    if len(values_to_store) == 1:
-                        # single value, grab the value
-                        row[attr] = values_to_store[0]
-                    else:
-                        # multi-valued, store the list for pandas.explode/normalize later
-                        row[attr] = values_to_store
-                else:
-                    # set a value for empty attributes
-                    row[attr] = None
-            
-            results.append(row)
 
-        logging.info(f"Found {len(results)} LDAP entries.")
-        return results
+        if search_status:
+            logging.info(json.dumps({
+                "event": "LDAP_SEARCH_SUCCESS",
+                "correlation_id": correlation_id,
+                "entries_found": len(conn.entries)
+            }, default=str))
+
+            clean_dn = item_config.get('clean_dn_attributes', [])
+            results = []
+
+            for entry in conn.entries:
+                row = {}
+
+                for attr in ldap_attributes:
+                    values_to_process = entry[attr].values if attr in entry else []
+
+                    if not values_to_process:
+                        row[attr] = None
+                        continue
+
+                    # DN cleanup if required
+                    if attr in clean_dn:
+                        value_to_store = [
+                            parse_uid_from_dn(v)
+                            for v in values_to_process
+                            if parse_uid_from_dn(v)
+                        ]
+                    else:
+                        value_to_store = values_to_process
+
+                    # Single vs multi-value handling
+                    if len(value_to_store) == 1:
+                        row[attr] = value_to_store[0]
+                    else:
+                        row[attr] = value_to_store
+
+                results.append(row)
+
+            return results
+
+        else:
+            logging.warning(json.dumps({
+                "event": "LDAP_SEARCH_NO_RESULTS",
+                "correlation_id": correlation_id,
+                "base_dn": base_dn,
+                "search_filter": search_filter
+            }, default=str))
+            return []
 
     except LDAPException as e:
-        logging.error(f"LDAP Error: {e}")
+        logging.error(json.dumps({
+            "event": "LDAP_EXCEPTION",
+            "correlation_id": correlation_id,
+            "error": str(e)
+        }, default=str))
         return None
     except Exception as e:
-        logging.error(f"An unexpected error occurred during LDAP fetch: {e}")
+        logging.error(json.dumps({
+            "event": "LDAP_UNEXPECTED_ERROR",
+            "correlation_id": correlation_id,
+            "error": str(e)
+        }, default=str))
         return None
     finally:
         if 'conn' in locals() and conn.bound:
