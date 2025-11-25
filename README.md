@@ -14,6 +14,31 @@ cd DataHound
 pip install -r requirements.txt
 ```
 
+## Usage
+```
+usage: DataHound.py [-h] --operation {collect,connect} --output OUTPUT [--source-kind SOURCE_KIND] [--config CONFIG] [--graphA GRAPHA] [--matchA MATCHA] [--graphB GRAPHB] [--matchB MATCHB] [--edge-kind EDGE_KIND]
+
+A versatile data pipeline engine that ingests information from diverse external sources and transforms the extracted node and edge data into the BloodHound OpenGraph format.
+
+options:
+  -h, --help            show this help message and exit
+
+General Options:
+  --operation {collect,connect}   Operation to complete.
+  --output OUTPUT                 Output file path for graph JSON
+
+Collect Options:
+  --source-kind SOURCE_KIND       The 'source_kind' to use for nodes in the graph.
+  --config CONFIG                 The path to the collection config file.
+
+Connect Options:
+  --graphA GRAPHA         Graph containing Start nodes
+  --matchA MATCHA         Element containing the field to match on in Graph A
+  --graphB GRAPHB         Graph containing End nodes
+  --matchB MATCHB         Element containing the field to match on in Graph B
+  --edge-kind EDGE_KIND   Kind value to use when generating connection edges
+```
+
 ## Core Functionality
 DataHound operates in two distinct modes: **collect** and **connect**.
 
