@@ -65,9 +65,8 @@ python DataHound.py --operation collect \
 | HTTP | Generic HTTP collector |
 | LDAP | Generic LDAP collector |
 
-* Review the [Collector Guide](CollectorGuide.md) for an expanded list of collectors in development.
+* Review the [Collector Guide](CollectorGuide.md) for an expanded list of collectors in development, the status and any known limitations or issues.
 * Review the [Collector Configuration Guide](CollectorConfigurationGuide.md) for details on the JSON file format and available properties for existing collectors (e.g., ```source_type```, ```column_mapping```).
-
 
 #### Arguments
 | Parameter | Argument Values | Required? | Description |

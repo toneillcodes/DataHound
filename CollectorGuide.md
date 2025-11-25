@@ -17,3 +17,9 @@ When a job executes, the core engine performs the following:
 | LDAP | ldap | Generic LDAP collector | Development |
 | JSON File | file_json | Generic file-based JSON collector | Planned |
 | CSV File | file_csv | Generic file-based CSV collector | Planned |
+
+## Known Collector Limitations
+### HTTP Collector
+* Only supports GET requests
+* Only supports JSON response data
+* No support for pagination, requires multiple defined requests
