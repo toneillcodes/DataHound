@@ -67,6 +67,37 @@
 	    "source_name": "permissions"
     },
     {
+        "item_type": "node",
+        "item_name": "SSO Providers",
+        "item_description": "SSO Providers found in the BloodHound instance",
+        "source_type": "url",
+        "source_url": "http://127.0.0.1:8080/api/v2/sso-providers",
+        "source_auth_type": "bearer-token",
+        "source_auth_token": "key.key.key",
+        "data_root": "data",  
+        "column_mapping": {
+            "name": "name",
+            "details.display_name": "display_name",
+            "details.idp_issuer_uri": "idp_issuer_uri",
+            "details.idp_sso_uri": "idp_sso_uri",
+            "details.principal_attribute_mappings": "principal_attribute_mappings",
+            "details.sso_provider_id": "sso_provider_id",
+            "details.created_at": "created_at"
+        },
+        "output_columns": [
+            "name",
+            "display_name",
+            "idp_issuer_uri",
+            "idp_sso_uri",
+            "principal_attribute_mappings",
+            "sso_provider_id",
+            "created_at"
+        ],                            
+        "id_location": "name",        		
+        "item_kind": "BHSSOProvider",
+	    "source_name": "sso-providers"
+    }, 
+    {
         "item_type": "edge",
         "item_name": "User Roles Edges",
         "item_description": "Users -> Role mappings in the BloodHound instance",

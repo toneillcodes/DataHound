@@ -1,4 +1,5 @@
 from jsonpath_ng.ext.parser import parse as jpng_parse
+from typing import Any, Dict, List, Optional
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import pandas as pd
@@ -40,7 +41,7 @@ def connect_graphs(graph_a: str, match_a: str, graph_b: str, match_b: str, edge_
         with open(graph_b, 'r') as f:
             graph_b_data = json.load(f)
 
-        # normalize data
+        # normalize data        
         df1 = pd.json_normalize(graph_a_data['graph']['nodes'])
         df2 = pd.json_normalize(graph_b_data['graph']['nodes'])
 
@@ -125,8 +126,7 @@ def connect_graphs(graph_a: str, match_a: str, graph_b: str, match_b: str, edge_
             }            
         }
         # todo: dump this to a summary.json file or a central log file, the output gets long with real datasets
-        #logging.info(f"Outputting processing_report summary:\n {json.dumps(processing_report, indent=4)}")        
-
+        #logging.info(f"Outputting processing_report summary:\n {json.dumps(processing_report, indent=4)}")
         return True
 
     except KeyError as e:
@@ -142,42 +142,88 @@ def connect_graphs(graph_a: str, match_a: str, graph_b: str, match_b: str, edge_
 def transform_node(input_object: pd.DataFrame, config: dict, source_kind: str):
     """
     Transforms a DataFrame into a list of node dictionaries.
+    Supports dot-paths in column_mapping and id_location to resolve nested objects.
     """
-    column_mapping = config.get('column_mapping', {})
-    target_columns = config.get('output_columns', [])    
-    item_kind = config['item_kind']
-    id_location = config['id_location']
+    column_mapping: Dict[str, str] = config.get('column_mapping', {})
+    target_columns: List[str] = config.get('output_columns', [])
+    item_kind: str = config['item_kind']
+    id_location: str = config['id_location']
 
-    #logging.debug(f"id_location: {id_location}") 
-    #logging.debug(f"target_columns: {target_columns}")
+    # --- helpers -------------------------------------------------------------
+    def get_nested(row: pd.Series, dotted_path: str) -> Any:
+        """
+        Resolve a dotted path relative to a row. Handles dicts inside cells.
+        Example: 'details.idp_sso_uri' where row['details'] is a dict.
+        """
+        # If the column already exists (because upstream flattening created it), just use it.
+        if dotted_path in row.index:
+            return row[dotted_path]
 
-    df_renamed = input_object.rename(columns=column_mapping)
+        current: Any = row
+        for part in dotted_path.split('.'):
+            if isinstance(current, pd.Series):
+                # Look up as a top-level column first.
+                if part in current.index:
+                    current = current[part]
+                else:
+                    # If the entire row doesn't have that column, cannot descend here.
+                    return None
+            elif isinstance(current, dict):
+                current = current.get(part, None)
+            else:
+                # We hit a non-dict and non-Series object; cannot traverse further.
+                return None
+
+            if current is None:
+                return None
+
+        return current
+
+    # --- create columns for dotted source paths -----------------------------
+    # We only need to materialize a column for a source key if it's dotted (contains '.')
+    # or if the DF doesn't already have that column name.
+    df = input_object.copy()
+
+    for source_path, target_name in column_mapping.items():
+        needs_materialization = ('.' in source_path) or (source_path not in df.columns)
+        if needs_materialization:
+            # Materialize source_path into a temporary column so .rename() can pick it up.
+            df[source_path] = df.apply(lambda row: get_nested(row, source_path), axis=1)
+
+    # --- your original flow continues ---------------------------------------
+    df_renamed = df.rename(columns=column_mapping)
+
+    # Filter to requested target columns (post-rename names)
     valid_cols = [col for col in target_columns if col in df_renamed.columns]
 
-    nan_string = "NULL"
+    nan_string = config.get('nan_string', 'NULL')
+
     df_transformed = (
-        df_renamed
-        [valid_cols]
+        df_renamed[valid_cols]
         .fillna(nan_string)
         .copy()
     )
 
-    # convert dataframe to a dictionary
-    records = df_transformed.to_dict('records')
-    #logging.debug(f"records: {records}") 
+    # Resolve id (support dot-path too)
+    if id_location in df_transformed.columns:
+        id_series = df_renamed[id_location]
+    else:
+        # Create a temporary id column if id_location is dotted/nested
+        id_series = df.apply(lambda row: get_nested(row, id_location), axis=1)
 
-    # construct node objects from transformed dataframe
+    records = df_transformed.to_dict('records')
+
     node_data = [
         {
-            "id": row[id_location],
+            "id": str(id_series.iloc[i]).strip() if pd.notna(id_series.iloc[i]) else nan_string,
             "kinds": [item_kind, source_kind],
-            "properties": row 
+            "properties": records[i]
         }
-        for row in records
+        for i in range(len(records))
     ]
-    
+
     return node_data
-    
+
 def transform_edge(input_object: pd.DataFrame, config: dict):
     """
     Transforms a DataFrame into a list of edge dictionaries.
