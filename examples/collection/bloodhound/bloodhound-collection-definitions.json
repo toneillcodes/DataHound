@@ -135,5 +135,22 @@
         "source_node_type": "BHRole",
         "target_node_type": "BHPermission",
         "source_name": "roles"
-    }    
+    },
+	{
+        "item_type": "edge",
+        "item_name": "User SSO Provider Edges",
+        "item_description": "User - [ProviderFor] -> SSO Provider mappings in the BloodHound instance",
+        "source_type": "url",
+        "source_url": "http://127.0.0.1:8080/api/v2/bloodhound-users",
+        "source_auth_type": "bearer-token",
+        "source_auth_token": "key",
+        "data_root": "users",
+        "edge_type": "static",
+        "edge_name": "ProviderFor",
+        "source_column": "sso_provider_id",
+        "target_column": "id",
+        "source_node_type": "BHSSOProvider",
+        "target_node_type": "BHUser",
+        "source_name": "bloodhound-users"
+    }
 ]
