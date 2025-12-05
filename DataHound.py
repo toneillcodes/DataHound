@@ -1,7 +1,7 @@
 from jsonpath_ng.ext.parser import parse as jpng_parse
-from typing import Any, Dict, List, Optional
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from typing import Any, Dict, List
 import pandas as pd
 import argparse
 import requests
@@ -139,6 +139,35 @@ def connect_graphs(graph_a: str, match_a: str, graph_b: str, match_b: str, edge_
         logging.error(f"Connect graphs: An unexpected error occurred: {e}")
         return False
 
+def get_nested(row: pd.Series, dotted_path: str) -> Any:
+    """
+    Resolve a dotted path relative to a row. Handles dicts inside cells.
+    Example: 'details.idp_sso_uri' where row['details'] is a dict.
+    """
+    # If the column already exists (because upstream flattening created it), just use it.
+    if dotted_path in row.index:
+        return row[dotted_path]
+
+    current: Any = row
+    for part in dotted_path.split('.'):
+        if isinstance(current, pd.Series):
+            # Look up as a top-level column first.
+            if part in current.index:
+                current = current[part]
+            else:
+                # If the entire row doesn't have that column, cannot descend here.
+                return None
+        elif isinstance(current, dict):
+            current = current.get(part, None)
+        else:
+            # We hit a non-dict and non-Series object; cannot traverse further.
+            return None
+
+        if current is None:
+            return None
+
+    return current
+
 def transform_node(input_object: pd.DataFrame, config: dict, source_kind: str):
     """
     Transforms a DataFrame into a list of node dictionaries.
@@ -148,36 +177,6 @@ def transform_node(input_object: pd.DataFrame, config: dict, source_kind: str):
     target_columns: List[str] = config.get('output_columns', [])
     item_kind: str = config['item_kind']
     id_location: str = config['id_location']
-
-    # --- helpers -------------------------------------------------------------
-    def get_nested(row: pd.Series, dotted_path: str) -> Any:
-        """
-        Resolve a dotted path relative to a row. Handles dicts inside cells.
-        Example: 'details.idp_sso_uri' where row['details'] is a dict.
-        """
-        # If the column already exists (because upstream flattening created it), just use it.
-        if dotted_path in row.index:
-            return row[dotted_path]
-
-        current: Any = row
-        for part in dotted_path.split('.'):
-            if isinstance(current, pd.Series):
-                # Look up as a top-level column first.
-                if part in current.index:
-                    current = current[part]
-                else:
-                    # If the entire row doesn't have that column, cannot descend here.
-                    return None
-            elif isinstance(current, dict):
-                current = current.get(part, None)
-            else:
-                # We hit a non-dict and non-Series object; cannot traverse further.
-                return None
-
-            if current is None:
-                return None
-
-        return current
 
     # --- create columns for dotted source paths -----------------------------
     # We only need to materialize a column for a source key if it's dotted (contains '.')
@@ -196,6 +195,7 @@ def transform_node(input_object: pd.DataFrame, config: dict, source_kind: str):
     # Filter to requested target columns (post-rename names)
     valid_cols = [col for col in target_columns if col in df_renamed.columns]
 
+    # todo: check on the important fields and drop rows that are missing values we need
     nan_string = config.get('nan_string', 'NULL')
 
     df_transformed = (
@@ -227,7 +227,125 @@ def transform_node(input_object: pd.DataFrame, config: dict, source_kind: str):
 def transform_edge(input_object: pd.DataFrame, config: dict):
     """
     Transforms a DataFrame into a list of edge dictionaries.
+    Supports dot-paths in column_mapping, target_column, and source_column 
+    to resolve nested objects.
     """
+    df = input_object.copy()
+
+    # --- create columns for dotted source paths -----------------------------
+    column_mapping: Dict[str, str] = config.get('column_mapping', {})
+    
+    # Identify all source paths that might be dotted and need materializing.
+    # This includes keys in column_mapping, source_column, and target_column.
+    source_col = config['source_column']
+    target_col = config['target_column']
+    
+    source_paths = set(column_mapping.keys())
+    source_paths.add(source_col)
+    source_paths.add(target_col)
+
+    for source_path in source_paths:
+        needs_materialization = ('.' in source_path) or (source_path not in df.columns)
+        if needs_materialization:
+            # Materialize source_path into a temporary column
+            df[source_path] = df.apply(lambda row: get_nested(row, source_path), axis=1)
+
+    # --- your original flow continues ---------------------------------------
+    
+    # remap columns (now that dotted source paths are materialized)
+    df.rename(columns=column_mapping, inplace=True)
+    
+    # Check for multi-valued target node
+    if config.get('target_is_multi_valued', False):
+        # explode the column to create a new row in the dataframe for each value
+        df = df.explode(target_col)
+    
+    # no null start, end nodes (using the materialized column names)
+    df = df[
+        (df[target_col].astype(str) != "None") & 
+        (df[target_col].astype(str) != "null") & 
+        (df[source_col].astype(str) != "None") &
+        (df[source_col].astype(str) != "null")
+    ]
+
+    # we may not want everything, so filter the columns
+    target_columns: List[str] = config.get('output_columns', [])
+    if target_columns:
+        valid_cols = [col for col in target_columns if col in df.columns]
+        df = df[valid_cols]
+
+    # vectorized start_id calculation
+    df['start_id'] = df[source_col].astype(str).str.strip()
+
+    # vectorized end_id calculation, depending on the 'target_is_multi_valued' control property
+    if config.get('target_is_multi_valued', False):
+        target_column_id = config['target_column_id']
+        # If target_col contains dicts, extract the nested ID. Otherwise, use the value directly.
+        df['end_id'] = df[target_col].apply(
+            lambda x: str(x.get(target_column_id)).strip() if isinstance(x, dict) and x.get(target_column_id) is not None else str(x).strip()
+        )
+    else:
+        df['end_id'] = df[target_col].astype(str).str.strip()
+    
+    # vectorized edge_kind calculation, depending on the 'edge_type' control property
+    edge_type = config['edge_type']
+    if edge_type == 'from_column':
+        edge_object = df[target_col]
+        edge_col_id = config['edge_column_id']
+        # If the target is a dict, extract the nested edge kind. Otherwise, use the value directly.
+        df['edge_kind'] = edge_object.apply(
+            lambda x: x.get(edge_col_id) if isinstance(x, dict) and x.get(edge_col_id) is not None else x
+        ).astype(str).str.strip()
+    else:
+        df['edge_kind'] = str(config['edge_name']).strip()
+        
+    # construct edge objects from transformed dataframe
+    edge_data = [
+        {
+            "kind": row['edge_kind'],
+            "start": {"value": row['start_id']},
+            "end": {"value": row['end_id']}
+            # todo: add properties
+        }
+        for row in df[['edge_kind', 'start_id', 'end_id']].to_dict('records')
+    ]
+    
+    return edge_data
+
+def _transform_edge(input_object: pd.DataFrame, config: dict):
+    """
+    Transforms a DataFrame into a list of edge dictionaries.
+    """
+    # --- helpers -------------------------------------------------------------
+    def get_nested(row: pd.Series, dotted_path: str) -> Any:
+        """
+        Resolve a dotted path relative to a row. Handles dicts inside cells.
+        Example: 'details.idp_sso_uri' where row['details'] is a dict.
+        """
+        # If the column already exists (because upstream flattening created it), just use it.
+        if dotted_path in row.index:
+            return row[dotted_path]
+
+        current: Any = row
+        for part in dotted_path.split('.'):
+            if isinstance(current, pd.Series):
+                # Look up as a top-level column first.
+                if part in current.index:
+                    current = current[part]
+                else:
+                    # If the entire row doesn't have that column, cannot descend here.
+                    return None
+            elif isinstance(current, dict):
+                current = current.get(part, None)
+            else:
+                # We hit a non-dict and non-Series object; cannot traverse further.
+                return None
+
+            if current is None:
+                return None
+
+        return current
+
     df = input_object.copy()
 
     # remap columns
@@ -242,10 +360,14 @@ def transform_edge(input_object: pd.DataFrame, config: dict):
         # explode the column to create a new row in the dataframe for each value
         df = df.explode(target_col)
     
-    # clean up NaN values that will break JSON
-    replacement_string = "NULL" 
-    df.fillna(replacement_string, inplace=True)
-    
+    # no null start, end nodes
+    #print(df)
+    df = df[
+        (df[target_col] != "null") &  # target_col is not "null"
+        (df[source_col] != "null")    # source_col is not "null"
+    ]
+    #print(df)
+
     # we may not want everything, so filter the columns
     target_columns = config.get('output_columns')
     if target_columns:
@@ -302,6 +424,20 @@ def read_config_file(file_path):
         return [data] if isinstance(data, dict) else []
         
     return data
+
+def replace_none_with_string_null(obj):
+    """
+    Recursively replaces Python None values with the string "null" within
+    a dictionary or list.
+    """
+    if isinstance(obj, dict):
+        return {k: replace_none_with_string_null(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [replace_none_with_string_null(elem) for elem in obj]
+    elif obj is None:
+        return "null"  # Replace None with the string "null"
+    else:
+        return obj
 
 # dictionary of transform functions
 TRANSFORMERS = {
@@ -425,10 +561,13 @@ def main():
                 data_object = ldap_data                 
             else:
                 logging.warning(f"Source type '{source_type}' is not yet implemented. Skipping item {item_name}.")
-        
+                
+            ## todo: add check to validate data_object
             try:
                 # flatten JSON
-                df = pd.json_normalize(data_object)
+                clean_data_object = replace_none_with_string_null(data_object)
+                df = pd.json_normalize(clean_data_object)
+                #df = pd.json_normalize(data_object)
             except Exception as e:
                 logging.error(f"Failed to normalize data for item {item_name}: {e}. Skipping.")
                 continue
@@ -441,6 +580,8 @@ def main():
                     transformed_data = transformer(df, config, source_kind)
                 else:
                     transformed_data = transformer(df, config)
+
+                ## TODO: confirm that transformed_data has a value
 
                 # append 'transformed_data' to the appropriate graph element (nodes or edges)
                 target_list = 'nodes' if item_type == 'node' else 'edges'
