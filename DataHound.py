@@ -1,7 +1,8 @@
-from jsonpath_ng.ext.parser import parse as jpng_parse
+from jsonpath_ng import parse as jsonpath_parse
+from typing import Any, Dict, List, Optional
 from requests.adapters import HTTPAdapter
+from json.decoder import JSONDecodeError
 from urllib3.util.retry import Retry
-from typing import Any, Dict, List
 import pandas as pd
 import argparse
 import requests
@@ -27,117 +28,6 @@ retry_strategy = Retry(
 )
 API_SESSION.mount("https://", HTTPAdapter(max_retries=retry_strategy))
 API_SESSION.mount("http://", HTTPAdapter(max_retries=retry_strategy))
-
-def connect_graphs(graph_a: str, match_a: str, graph_b: str, match_b: str, edge_kind: str, output_path: str) -> None:
-    """
-    Loads the JSON from two OG files and correlates the data using the specified matching fields.
-    An OG JSON to connect matching nodes is generated, along with a summary of entries from either side without a match.
-    """
-    logging.info(f"Correlating {graph_a} and {graph_b}.")
-
-    try:
-        with open(graph_a, 'r') as f:
-            graph_a_data = json.load(f)
-        with open(graph_b, 'r') as f:
-            graph_b_data = json.load(f)
-
-        # normalize data        
-        df1 = pd.json_normalize(graph_a_data['graph']['nodes'])
-        df2 = pd.json_normalize(graph_b_data['graph']['nodes'])
-
-        # clean keys (string conversion + trim whitespace)
-        ## todo: change this so that it doesn't have to be under 'properties'
-        match_a_path = f'properties.{match_a}'
-        match_b_path = f'properties.{match_b}'
-        df1[match_a_path] = df1[match_a_path].astype(str).str.strip()
-        df2[match_b_path] = df2[match_b_path].astype(str).str.strip()
-
-        # select relevant columns
-        df1_subset = df1[['id', match_a_path]]
-        df2_subset = df2[['id', match_b_path]]
-
-        # perform outer merge using the matchA and matchB fields
-        merged_df = pd.merge(
-            df1_subset,
-            df2_subset,
-            left_on=match_a_path,
-            right_on=match_b_path,
-            how='outer',
-            indicator=True
-        )
-
-        # matched nodes
-        success_df = merged_df[merged_df['_merge'] == 'both'].copy()
-        # remap column names - now success_output is what we want to use to build the graph
-        success_output = success_df.rename(columns={'id_x': 'start_value', 'id_y': 'end_value'})[['start_value', 'end_value']]
-
-        # failures (Graph A Orphans)
-        grapha_fail_df = merged_df[merged_df['_merge'] == 'left_only'].copy()
-        grapha_fail_output = grapha_fail_df.rename(columns={
-            'id_x': 'failed_node_id',
-            match_a_path: 'missing_lookup_key'
-        })[['failed_node_id', 'missing_lookup_key']]
-
-        # failures (Graph B Orphans)
-        graphb_fail_df = merged_df[merged_df['_merge'] == 'right_only'].copy()
-        graphb_fail_output = graphb_fail_df.rename(columns={
-            'id_y': 'failed_node_id',
-            match_b_path: 'missing_lookup_key'
-        })[['failed_node_id', 'missing_lookup_key']]
-
-        # template graph structure
-        connected_graph = {
-            "graph": {
-                "edges": []
-            }
-        }
-
-        # construct edge objects from transformed dataframe
-        edges = [
-            {
-                "kind": edge_kind,
-                "start": {
-                        "value": row['start_value']
-                },
-                "end": {
-                        "value": row['end_value']
-                }
-            }
-            for row in success_output[['start_value', 'end_value']].to_dict('records')
-        ]
-
-        connected_graph['graph']['edges'].extend(edges)
-
-        # write output
-        with open(output_path, 'w') as f:
-            json.dump(connected_graph, f, indent=4)
-            logging.info(f"Success! Output written to: {output_path}")
-        
-        # report of errors and summary stats
-        processing_report = {
-            "summary": {
-                "total_matches": len(success_output),
-                "unmatched_graph_a": len(grapha_fail_output),
-                "unmatched_graph_b": len(graphb_fail_output)
-            },
-            "records": {
-                "unmatched_in_graph_a": grapha_fail_output.to_dict(orient='records'),
-                "unmatched_in_graph_b": graphb_fail_output.to_dict(orient='records')             
-            }            
-        }
-        # todo: dump this to a summary.json file or a central log file, the output gets long with real datasets
-        #logging.info(f"Outputting processing_report summary:\n {json.dumps(processing_report, indent=4)}")
-        return True
-
-    except KeyError as e:
-        logging.error(f"Key error during processing (check your property names): {e}")
-        return True
-    except FileNotFoundError as e:
-        logging.error(f"File not found: {e}")
-        return False
-    except Exception as e:
-        logging.error(f"Connect graphs: An unexpected error occurred: {e}")
-        return False
 
 def get_nested(row: pd.Series, dotted_path: str) -> Any:
     """
@@ -168,6 +58,158 @@ def get_nested(row: pd.Series, dotted_path: str) -> Any:
 
     return current
 
+def connect_graphs(graph_a: str, root_a: str,  id_a:str, match_a: str, graph_b: str, root_b: str, id_b: str, match_b: str, edge_kind: str, output_path: str) -> bool:
+    """
+    Loads the JSON from two graph files and correlates the data using the specified matching fields.
+    """
+    def load_json(path: str) -> Any:
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            logging.error(f"File not found: {path}")
+            raise
+        except JSONDecodeError as e:
+            logging.error(f"Invalid JSON in {path}: {e}")
+            raise
+
+    def get_jsonpath_single(obj: Any, jsonpath_expr_str: str) -> Optional[Any]:
+        """
+        Evaluate a JSONPath expression against a JSON-like object and return a single result.
+
+        - Parses `jsonpath_expr_str` and searches `obj`.
+        - Returns the first match's value if one or more matches exist.
+        - Returns None if no matches exist.
+        - Logs a warning if multiple matches are found.
+        - Logs and raises if the JSONPath expression is invalid.
+
+        Parameters
+        ----------
+        obj : Any
+            The JSON-like object (dict/list) to query.
+        jsonpath_expr_str : str
+            The JSONPath expression string.
+
+        Returns
+        -------
+        Optional[Any]
+            The value of the first match, or None if no matches.
+        """
+        try:
+            expr = jsonpath_parse(jsonpath_expr_str)
+        except Exception as e:
+            logging.error(f"Invalid JSONPath expression '{jsonpath_expr_str}': {e}")
+            raise
+        matches = expr.find(obj)
+        if not matches:
+            return None
+        return matches[0].value
+
+    def load_roots_with_jsonpath(graph_a: str, graph_b: str, root_a: str, root_b: str) -> tuple[Any, Any]:
+        graph_a_data = load_json(graph_a)
+        graph_b_data = load_json(graph_b)
+
+        # $..foo means recursive descent for key 'foo' anywhere in the JSON
+        expr_a = f"$..{root_a}"
+        expr_b = f"$..{root_b}"
+
+        data_object_a = get_jsonpath_single(graph_a_data, expr_a)
+        if data_object_a is None:
+            logging.error(f"Could not find data root element: '{root_a}' in {graph_a}")
+            raise KeyError(f"Root '{root_a}' not found")
+
+        data_object_b = get_jsonpath_single(graph_b_data, expr_b)
+        if data_object_b is None:
+            logging.error(f"Could not find data root element: '{root_b}' in {graph_b}")
+            raise KeyError(f"Root '{root_b}' not found")
+
+        return data_object_a, data_object_b
+
+    logging.info(f"Correlating {graph_a} (root: {root_a}) and {graph_b} (root: {root_b}) using keys '{match_a}' and '{match_b}'.")
+
+    try:
+        data_object_a, data_object_b = load_roots_with_jsonpath(graph_a, graph_b, root_a, root_b)
+        
+        # normalize data
+        df1 = pd.json_normalize(data_object_a)
+        df2 = pd.json_normalize(data_object_b)
+
+        # drop rows that have NaN values in the ID or match column
+        df1 = df1.dropna(axis=0, subset=[id_a, match_a])
+        df2 = df2.dropna(axis=0, subset=[id_b, match_b])
+
+        # select relevant columns and perform string cleaning (stripping/case) 
+        # should this be changed to uppercase? i think BH normalizes to upper
+        df1[match_a] = df1[match_a].astype(str).str.strip().str.lower()
+        df2[match_b] = df2[match_b].astype(str).str.strip().str.lower()
+
+        df1_subset = df1[[id_a, match_a]].copy()
+        df2_subset = df2[[id_b, match_b]].copy()
+        
+        #print("df1_subset:")
+        #print(df1_subset)
+        #print("df2_subset:")
+        #print(df2_subset)
+    
+        # perform outer merge using the match columns as our key
+        merged_df = pd.merge(
+            df1_subset,
+            df2_subset,
+            left_on=match_a,
+            right_on=match_b,
+            how='outer',
+            indicator=True            
+        )
+        #print("merged_df:")
+        #print(merged_df)
+
+        # Matched nodes only
+        success_df = merged_df[merged_df['_merge'] == 'both'].copy()
+        #print("success_df:")
+        #print(success_df)
+
+        success_output = success_df.rename(columns={id_a: 'start_value', id_b: 'end_value'})[['start_value', 'end_value']]
+
+        # Template graph structure
+        connected_graph = {
+            "graph": {
+                "edges": []
+            }
+        }
+
+        # Construct edge objects from transformed dataframe
+        edges = [
+            {
+                "kind": edge_kind,
+                "start": {
+                    "value": row['start_value']
+                },
+                "end": {
+                    "value": row['end_value']
+                }
+            }
+            for row in success_output[['start_value', 'end_value']].to_dict('records')
+        ]
+
+        connected_graph['graph']['edges'].extend(edges)
+
+        # Write output
+        with open(output_path, 'w') as f:
+            json.dump(connected_graph, f, indent=4)
+            logging.info(f"Success! Output written to: {output_path}")
+        return True
+
+    except KeyError as e:
+        # A KeyError now likely means the dot-path itself is invalid or 'id' column is missing
+        logging.error(f"Key error during processing (check your dot-path property names: {match_a} or {match_b}, or confirm 'id' is available in the root data): {e}")
+        return False
+    except FileNotFoundError as e:
+        logging.error(f"File not found: {e}")
+        return False
+    except Exception as e:
+        logging.error(f"Connect graphs: An unexpected error occurred: {e}")
+        return False
+
 def transform_node(input_object: pd.DataFrame, config: dict, source_kind: str):
     """
     Transforms a DataFrame into a list of node dictionaries.
@@ -189,7 +231,6 @@ def transform_node(input_object: pd.DataFrame, config: dict, source_kind: str):
             # Materialize source_path into a temporary column so .rename() can pick it up.
             df[source_path] = df.apply(lambda row: get_nested(row, source_path), axis=1)
 
-    # --- your original flow continues ---------------------------------------
     df_renamed = df.rename(columns=column_mapping)
 
     # Filter to requested target columns (post-rename names)
@@ -461,11 +502,17 @@ def main():
     
     # arguments for connect operations
     connect_group = parser.add_argument_group("Connect Options")
-    connect_group.add_argument("--graphA", type=str, help="Graph containing Start nodes")
-    connect_group.add_argument("--matchA", type=str, help="Element containing the field to match on in Graph A")
-    connect_group.add_argument("--graphB", type=str, help="Graph containing End nodes")
-    connect_group.add_argument("--matchB", type=str, help="Element containing the field to match on in Graph B")
-    connect_group.add_argument("--edge-kind", type=str, help="Kind value to use when generating connection edges")
+    connect_group.add_argument("--graphA", type=str, help="Graph containing Start nodes.")
+    connect_group.add_argument("--rootA", type=str, help="Element containing the root of the node data (ex: nodes).")
+    connect_group.add_argument("--idA", type=str, help="Element containing the field to use as the start node ID (ex: id) from Graph A.")
+    connect_group.add_argument("--matchA", type=str, help="Element containing the field to match on in Graph A.")
+    
+    connect_group.add_argument("--graphB", type=str, help="Graph containing End nodes.")
+    connect_group.add_argument("--rootB", type=str, help="Element containing the field to match on in Graph B.")
+    connect_group.add_argument("--idB", type=str, help="Element containing the field to use as the end node ID (ex: id) from Graph B.")
+    connect_group.add_argument("--matchB", type=str, help="Element containing the field to match on in Graph B.")
+    
+    connect_group.add_argument("--edge-kind", type=str, help="Kind value to use when generating connection edges (ex: MapsTo).")
 
     # arguments for upload operations
     #upload_group = parser.add_argument_group("Upload Options")
@@ -539,7 +586,7 @@ def main():
                     continue
                     
                 # create a jsonpath expression to find all matches for the data root element recursively             
-                jsonpath_expression = jpng_parse(f'$..{data_root_element}')
+                jsonpath_expression = jsonpath_parse(f'$..{data_root_element}')
                 # check the API response for jsonpath_expression
                 path_matches = jsonpath_expression.find(api_response)
                 
@@ -564,8 +611,10 @@ def main():
                 
             ## todo: add check to validate data_object
             try:
-                # flatten JSON
+                # sanitize the data to prevent unintended data conversions during the pd.json_normalize operation
+                # without this, integer values can be converted into floats
                 clean_data_object = replace_none_with_string_null(data_object)
+                # flatten JSON
                 df = pd.json_normalize(clean_data_object)
                 #df = pd.json_normalize(data_object)
             except Exception as e:
@@ -581,8 +630,7 @@ def main():
                 else:
                     transformed_data = transformer(df, config)
 
-                ## TODO: confirm that transformed_data has a value
-
+                ## todo: confirm that transformed_data has a value
                 # append 'transformed_data' to the appropriate graph element (nodes or edges)
                 target_list = 'nodes' if item_type == 'node' else 'edges'
                 graph_structure['graph'][target_list].extend(transformed_data)
@@ -605,17 +653,24 @@ def main():
                 logging.error(f"Failed to write output file: {output_file}. Error: {e}")
 
     elif operation == "connect":
+        # graph a properties
         graph_a = args.graphA
+        root_a = args.rootA
+        id_a = args.idA
         match_a = args.matchA
+        # graph b properties
         graph_b = args.graphB
+        root_b = args.rootB
+        id_b = args.idB
         match_b = args.matchB
+        # connecting edge kind
         edge_kind = args.edge_kind
         if edge_kind is None:
             logging.error("The '--edge-kind' argument is required with the 'connect' operation.")
             sys.exit(1)
         output_file = args.output
         if output_file:
-            if connect_graphs(graph_a, match_a, graph_b, match_b, edge_kind, output_file):
+            if connect_graphs(graph_a, root_a, id_a, match_a, graph_b, root_b, id_b, match_b, edge_kind, output_file):
                 logging.info(f"Successfully connected graphs with {edge_kind} edge kind.")
             else:
                 logging.error(f"Failed to connect graph A ({graph_a}) to graph B ({graph_b})")
