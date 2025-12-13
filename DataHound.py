@@ -15,6 +15,8 @@ import os
 # import collector modules
 from collector_modules.ldap_collector import collect_ldap_data
 from collector_modules.http_collector import collect_http_data
+from collector_modules.csv_collector import collect_csv_data
+from collector_modules.json_collector import collect_json_data
 
 # configure logging
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
@@ -219,33 +221,40 @@ def transform_node(input_object: pd.DataFrame, config: dict, source_kind: str):
     target_columns: List[str] = config.get('output_columns', [])
     item_kind: str = config['item_kind']
     id_location: str = config['id_location']
+    source_type = config.get('source_type')
 
-    # --- create columns for dotted source paths -----------------------------
-    # We only need to materialize a column for a source key if it's dotted (contains '.')
-    # or if the DF doesn't already have that column name.
     df = input_object.copy()
 
+    print(f"df: {df}")
+
+    print(f"column_mapping: {column_mapping}")
+
+    # We only need to materialize a column for a source key if it's dotted (contains '.')
+    # or if the DF doesn't already have that column name.
     for source_path, target_name in column_mapping.items():
         needs_materialization = ('.' in source_path) or (source_path not in df.columns)
         if needs_materialization:
             # Materialize source_path into a temporary column so .rename() can pick it up.
             df[source_path] = df.apply(lambda row: get_nested(row, source_path), axis=1)
-
+            
     df_renamed = df.rename(columns=column_mapping)
+    print(f"df_renamed: {df_renamed}")
 
     # Filter to requested target columns (post-rename names)
     valid_cols = [col for col in target_columns if col in df_renamed.columns]
-
     # todo: check on the important fields and drop rows that are missing values we need
     nan_string = config.get('nan_string', 'NULL')
 
     df_transformed = (
         df_renamed[valid_cols]
         .fillna(nan_string)
+        .astype(str)
         .copy()
     )
 
-    # Resolve id (support dot-path too)
+    print(f"my_df_transformed: {df_transformed}")
+
+    # resolve id with dot-path support
     if id_location in df_transformed.columns:
         id_series = df_renamed[id_location]
     else:
@@ -254,13 +263,18 @@ def transform_node(input_object: pd.DataFrame, config: dict, source_kind: str):
 
     records = df_transformed.to_dict('records')
 
+    # Convert the id_series to a list for zipping
+    id_list = id_series.astype(str).tolist() # Convert to list of strings for safety
+
+    # Combine the IDs and the properties for final structure
+    # Use zip() to iterate through IDs and property dictionaries simultaneously
     node_data = [
         {
-            "id": str(id_series.iloc[i]).strip() if pd.notna(id_series.iloc[i]) else nan_string,
+            "id": node_id,                       # Use the extracted ID from id_list
             "kinds": [item_kind, source_kind],
-            "properties": records[i]
+            "properties": properties_dict
         }
-        for i in range(len(records))
+        for node_id, properties_dict in zip(id_list, records)
     ]
 
     return node_data
@@ -273,11 +287,8 @@ def transform_edge(input_object: pd.DataFrame, config: dict):
     """
     df = input_object.copy()
 
-    # --- create columns for dotted source paths -----------------------------
     column_mapping: Dict[str, str] = config.get('column_mapping', {})
     
-    # Identify all source paths that might be dotted and need materializing.
-    # This includes keys in column_mapping, source_column, and target_column.
     source_col = config['source_column']
     target_col = config['target_column']
     
@@ -285,14 +296,14 @@ def transform_edge(input_object: pd.DataFrame, config: dict):
     source_paths.add(source_col)
     source_paths.add(target_col)
 
+    # Identify all source paths that might be dotted and need materializing.
+    # This includes keys in column_mapping, source_column, and target_column.
     for source_path in source_paths:
         needs_materialization = ('.' in source_path) or (source_path not in df.columns)
         if needs_materialization:
             # Materialize source_path into a temporary column
             df[source_path] = df.apply(lambda row: get_nested(row, source_path), axis=1)
 
-    # --- your original flow continues ---------------------------------------
-    
     # remap columns (now that dotted source paths are materialized)
     df.rename(columns=column_mapping, inplace=True)
     
@@ -346,101 +357,7 @@ def transform_edge(input_object: pd.DataFrame, config: dict):
             "kind": row['edge_kind'],
             "start": {"value": row['start_id']},
             "end": {"value": row['end_id']}
-            # todo: add properties
-        }
-        for row in df[['edge_kind', 'start_id', 'end_id']].to_dict('records')
-    ]
-    
-    return edge_data
-
-def _transform_edge(input_object: pd.DataFrame, config: dict):
-    """
-    Transforms a DataFrame into a list of edge dictionaries.
-    """
-    # --- helpers -------------------------------------------------------------
-    def get_nested(row: pd.Series, dotted_path: str) -> Any:
-        """
-        Resolve a dotted path relative to a row. Handles dicts inside cells.
-        Example: 'details.idp_sso_uri' where row['details'] is a dict.
-        """
-        # If the column already exists (because upstream flattening created it), just use it.
-        if dotted_path in row.index:
-            return row[dotted_path]
-
-        current: Any = row
-        for part in dotted_path.split('.'):
-            if isinstance(current, pd.Series):
-                # Look up as a top-level column first.
-                if part in current.index:
-                    current = current[part]
-                else:
-                    # If the entire row doesn't have that column, cannot descend here.
-                    return None
-            elif isinstance(current, dict):
-                current = current.get(part, None)
-            else:
-                # We hit a non-dict and non-Series object; cannot traverse further.
-                return None
-
-            if current is None:
-                return None
-
-        return current
-
-    df = input_object.copy()
-
-    # remap columns
-    column_mapping = config.get('column_mapping', {})
-    df.rename(columns=column_mapping, inplace=True)
-    
-    target_col = config['target_column']
-    source_col = config['source_column']
-    
-    # check for multi-valued target node
-    if config.get('target_is_multi_valued', False):
-        # explode the column to create a new row in the dataframe for each value
-        df = df.explode(target_col)
-    
-    # no null start, end nodes
-    #print(df)
-    df = df[
-        (df[target_col] != "null") &  # target_col is not "null"
-        (df[source_col] != "null")    # source_col is not "null"
-    ]
-    #print(df)
-
-    # we may not want everything, so filter the columns
-    target_columns = config.get('output_columns')
-    if target_columns:
-        valid_cols = [col for col in target_columns if col in df.columns]
-        df = df[valid_cols]
-
-    # vectorized start_id calculation
-    df['start_id'] = df[source_col].astype(str)
-
-    # vectorized end_id calculation, depending on the 'target_is_multi_valued' control property
-    if config.get('target_is_multi_valued', False):
-        target_column_id = config['target_column_id']
-        df['end_id'] = df[target_col].apply(lambda x: str(x.get(target_column_id)) if isinstance(x, dict) else str(x))
-    else:
-        df['end_id'] = df[target_col].astype(str)
-    
-    # vectorized edge_kind calculation, depending on the 'edge_type' control property
-    edge_type = config['edge_type']
-    if edge_type == 'from_column':
-        edge_object = df[config['target_column']]
-        edge_col_id = config['edge_column_id']
-        df['edge_kind'] = edge_object.apply(lambda x: x.get(edge_col_id) if isinstance(x, dict) else x)
-    else:
-        df['edge_kind'] = config['edge_name']
-        
-    # construct edge objects from transformed dataframe
-    edge_data = [
-        {
-            "kind": row['edge_kind'],
-            "start": {"value": row['start_id']},
-            "end": {"value": row['end_id']}
-            # todo: add properties
+            # todo: add properties?
         }
         for row in df[['edge_kind', 'start_id', 'end_id']].to_dict('records')
     ]
@@ -597,6 +514,18 @@ def main():
 
                 first_match = path_matches[0]
                 data_object = first_match.value
+                
+                ## todo: add check to validate data_object
+                try:
+                    # sanitize the data to prevent unintended data conversions during the pd.json_normalize operation
+                    # without this, integer values can be converted into floats
+                    clean_data_object = replace_none_with_string_null(data_object)
+                    # flatten JSON
+                    df = pd.json_normalize(clean_data_object)
+                    #df = pd.json_normalize(data_object)
+                except Exception as e:
+                    logging.error(f"Failed to normalize data for item {item_name}: {e}. Skipping.")
+                    continue
             elif source_type == "ldap":
                 ldap_password = getpass.getpass("LDAP Bind Password: ")
                 # retrieve data from ldap
@@ -605,21 +534,48 @@ def main():
                     logging.warning(f"Skipping item {item_name} due to failed LDAP connection/search.")
                     continue
                 # something was returned, point data_object to it for processing
-                data_object = ldap_data                 
+                data_object = ldap_data
+                ## todo: add check to validate data_object
+                try:
+                    # sanitize the data to prevent unintended data conversions during the pd.json_normalize operation
+                    # without this, integer values can be converted into floats
+                    clean_data_object = replace_none_with_string_null(data_object)
+                    # flatten JSON
+                    df = pd.json_normalize(clean_data_object)
+                    #df = pd.json_normalize(data_object)
+                except Exception as e:
+                    logging.error(f"Failed to normalize data for item {item_name}: {e}. Skipping.")
+                    continue
+            elif source_type == "csv":
+                csv_data = collect_csv_data(config)
+                if csv_data is None:
+                    logging.warning(f"Skipping item {item_name} due to failed parsing of input file.")
+                    continue
+                # something was returned, point data_object to it for processing
+                print(f"csv_data: {csv_data}")
+                df = csv_data  
+            elif source_type == "json":
+                json_data = collect_json_data(config)
+                if json_data is None:
+                    logging.warning(f"Skipping item {item_name} due to failed parsing of input file.")
+                    continue
+                # something was returned, point data_object to it for processing
+                print(f"json_data: {json_data}")
+                df = json_data                                                                  
             else:
                 logging.warning(f"Source type '{source_type}' is not yet implemented. Skipping item {item_name}.")
                 
-            ## todo: add check to validate data_object
-            try:
-                # sanitize the data to prevent unintended data conversions during the pd.json_normalize operation
-                # without this, integer values can be converted into floats
-                clean_data_object = replace_none_with_string_null(data_object)
-                # flatten JSON
-                df = pd.json_normalize(clean_data_object)
-                #df = pd.json_normalize(data_object)
-            except Exception as e:
-                logging.error(f"Failed to normalize data for item {item_name}: {e}. Skipping.")
-                continue
+                ## todo: add check to validate data_object
+                try:
+                    # sanitize the data to prevent unintended data conversions during the pd.json_normalize operation
+                    # without this, integer values can be converted into floats
+                    clean_data_object = replace_none_with_string_null(data_object)
+                    # flatten JSON
+                    df = pd.json_normalize(clean_data_object)
+                    #df = pd.json_normalize(data_object)
+                except Exception as e:
+                    logging.error(f"Failed to normalize data for item {item_name}: {e}. Skipping.")
+                    continue
 
             # transform and append using dispatch dictionary
             transformer = TRANSFORMERS.get(item_type)

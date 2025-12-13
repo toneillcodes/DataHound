@@ -49,6 +49,7 @@ def collect_http_data(config, session=None):
         response.raise_for_status()
 
         try:
+            # todo: adjust to handle multiple data formats
             return response.json()
         except json.JSONDecodeError:
             logging.error(json.dumps({

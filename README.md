@@ -1,4 +1,9 @@
-# DataHound
+<p align="center">
+  <img width="530" src="assets/datahound.png"><br/>
+  <i>Graph The Planet</i>
+</p>
+
+# Overview
 A modular data pipeline engine built to extract, normalize, and correlate data into the BloodHound OpenGraph framework.
 
 ## Quick Start & Prerequisites
@@ -99,6 +104,8 @@ $
 |----|----|
 | HTTP | Generic HTTP collector |
 | LDAP | Generic LDAP collector |
+| CSV | Generic file-based CSV collector |
+| JSON | Generic file-based JSON collector |
 
 * Review the [Collector Guide](CollectorGuide.md) for an expanded list of collectors in development, the status and any known limitations or issues.
 * Review the [Collector Configuration Guide](CollectorConfigurationGuide.md) for details on the JSON file format and available properties for existing collectors (e.g., ```source_type```, ```column_mapping```).
@@ -156,11 +163,13 @@ $
 
 ## Examples
 Explore  practical examples to see DataHound in action:
-### Collect Exampls
+### Collect Examples
 - [BloodHound Collector](examples/collection/bloodhound/README.md)
 - [LDAP Collector](examples/collection/ldap/README.md)
 ### Connect Examples
 - Connecting Two Sample OG Graphs with a Static Edge
+- Connecting a Sample OG Graphs with the Sample AD Data Set
+- Connecting a Sample OG Graphs with the Sample Azure Data Set
 
 ## Todo & Future Features
 * Debug or verbose messages with logging
