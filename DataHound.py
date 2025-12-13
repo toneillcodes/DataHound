@@ -225,9 +225,7 @@ def transform_node(input_object: pd.DataFrame, config: dict, source_kind: str):
 
     df = input_object.copy()
 
-    print(f"df: {df}")
-
-    print(f"column_mapping: {column_mapping}")
+    #print(f"df: {df}")
 
     # We only need to materialize a column for a source key if it's dotted (contains '.')
     # or if the DF doesn't already have that column name.
@@ -238,7 +236,7 @@ def transform_node(input_object: pd.DataFrame, config: dict, source_kind: str):
             df[source_path] = df.apply(lambda row: get_nested(row, source_path), axis=1)
             
     df_renamed = df.rename(columns=column_mapping)
-    print(f"df_renamed: {df_renamed}")
+    #print(f"df_renamed: {df_renamed}")
 
     # Filter to requested target columns (post-rename names)
     valid_cols = [col for col in target_columns if col in df_renamed.columns]
@@ -252,7 +250,7 @@ def transform_node(input_object: pd.DataFrame, config: dict, source_kind: str):
         .copy()
     )
 
-    print(f"my_df_transformed: {df_transformed}")
+    #print(f"df_transformed: {df_transformed}")
 
     # resolve id with dot-path support
     if id_location in df_transformed.columns:
@@ -552,7 +550,7 @@ def main():
                     logging.warning(f"Skipping item {item_name} due to failed parsing of input file.")
                     continue
                 # something was returned, point data_object to it for processing
-                print(f"csv_data: {csv_data}")
+                #print(f"csv_data: {csv_data}")
                 df = csv_data  
             elif source_type == "json":
                 json_data = collect_json_data(config)
@@ -560,7 +558,7 @@ def main():
                     logging.warning(f"Skipping item {item_name} due to failed parsing of input file.")
                     continue
                 # something was returned, point data_object to it for processing
-                print(f"json_data: {json_data}")
+                #print(f"json_data: {json_data}")
                 df = json_data                                                                  
             else:
                 logging.warning(f"Source type '{source_type}' is not yet implemented. Skipping item {item_name}.")
