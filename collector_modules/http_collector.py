@@ -36,9 +36,9 @@ def collect_http_data(config, session=None):
         response = session.get(request_url, headers=req_headers, timeout=30)
         elapsed_time = response.elapsed.total_seconds()
 
-        # Structured info log for successful request
+        # Structured info logging the sent request
         logging.info(json.dumps({
-            "event": "HTTP_REQUEST_SUCCESS",
+            "event": "HTTP_REQUEST_SENT",
             "correlation_id": correlation_id,
             "url": request_url,
             "status_code": response.status_code,
@@ -48,7 +48,16 @@ def collect_http_data(config, session=None):
 
         response.raise_for_status()
 
-        try:
+        try:            
+            # Structured info logging the sent request
+            logging.info(json.dumps({
+                "event": "HTTP_REQUEST_SUCCESS",
+                "correlation_id": correlation_id,
+                "url": request_url,
+                "status_code": response.status_code,
+                "elapsed_seconds": elapsed_time,
+                "content_length": len(response.content)
+            }))
             # todo: adjust to handle multiple data formats
             return response.json()
         except json.JSONDecodeError:

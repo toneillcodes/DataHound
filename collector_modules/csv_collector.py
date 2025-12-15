@@ -25,7 +25,7 @@ def collect_csv_data(config: dict) -> Optional[pd.DataFrame]:
         logging.error(json.dumps({
             "event": "CONFIG_ERROR",
             "correlation_id": correlation_id,
-            "message": "Missing 'csv_file_path' in config."
+            "message": "Missing 'input_file' in config."
         }))
         return None
 

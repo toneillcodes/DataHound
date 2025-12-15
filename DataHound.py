@@ -395,11 +395,297 @@ def replace_none_with_string_null(obj):
     else:
         return obj
 
-# dictionary of transform functions
-TRANSFORMERS = {
-    'node': transform_node,
-    'edge': transform_edge
-}
+def process_http_source(config):
+    item_name = config.get('item_name', 'NA')
+    if not config.get('item_type'):
+        logging.error(f"'item_type' is required. Skipping item: {item_name}.")
+        return False
+    item_type = config.get('item_type')    
+    
+    # validation
+    if not config.get('source_url'):
+        logging.error(f"'source_url' is required for source_type='url' (Ref: {item_name}). Skipping.")
+        return False
+
+    if config.get('source_auth_type') == "bearer-token" and not config.get('source_auth_token'):
+        logging.error(f"'source_auth_token' is required for bearer-token auth (Ref: {item_name}). Skipping.")
+        return False
+
+    # retrieve data from API endpoint defined in tranformation (config)
+    api_response = collect_http_data(config, API_SESSION)
+
+    # todo: add debug output control with additional debug statements
+    #logging.debug(f"api_response: {api_response}") 
+    
+    if api_response is None:
+        logging.warning(f"Skipping item {item_name} due to failed API response.")
+        return False
+
+    # retrieve the root data element
+    data_root_element = config.get('data_root')
+    if not data_root_element:
+        logging.error(f"'data_root' element is missing for item {item_name}. Skipping.")
+        return False
+        
+    # create a jsonpath expression to find all matches for the data root element recursively             
+    jsonpath_expression = jsonpath_parse(f'$..{data_root_element}')
+    # check the API response for jsonpath_expression
+    path_matches = jsonpath_expression.find(api_response)
+    
+    # no matches
+    if not path_matches:
+        logging.error(f"Could not find data root element: {data_root_element} for item {item_name}. Skipping.")
+        return False
+
+    first_match = path_matches[0]
+    data_object = first_match.value
+    
+    ## todo: add check to validate data_object
+    try:
+        # sanitize the data to prevent unintended data conversions during the pd.json_normalize operation
+        # without this, integer values can be converted into floats
+        clean_data_object = replace_none_with_string_null(data_object)
+        # flatten JSON
+        df = pd.json_normalize(clean_data_object)
+        #df = pd.json_normalize(data_object)
+        return df
+    except Exception as e:
+        logging.error(f"Failed to normalize data for item {item_name}: {e}. Skipping.")
+        return False
+
+def process_ldap_source(config):
+    item_name = config.get('item_name', 'NA')
+    if not config.get('item_type'):
+        logging.error(f"'item_type' is required. Skipping item: {item_name}.")
+        return False
+    # unused currently, does this have a purpose?
+    item_type = config.get('item_type')     
+    ldap_password = getpass.getpass("LDAP Bind Password: ")
+    # retrieve data from ldap
+    ldap_data = collect_ldap_data(config, ldap_password)
+    if ldap_data is None:
+        logging.warning(f"Skipping item {item_name} due to failed LDAP connection/search.")
+        return False
+    # something was returned, point data_object to it for processing
+    data_object = ldap_data
+    ## todo: add check to validate data_object
+    try:
+        # sanitize the data to prevent unintended data conversions during the pd.json_normalize operation
+        # without this, integer values can be converted into floats
+        clean_data_object = replace_none_with_string_null(data_object)
+        # flatten JSON
+        #df = pd.json_normalize(data_object)
+        df = pd.json_normalize(clean_data_object)
+        return df
+    except Exception as e:
+        logging.error(f"Failed to normalize data for item {item_name}: {e}. Skipping.")
+        return False
+
+def process_csv_source(config):
+    item_name = config.get('item_name', 'NA')
+    if not config.get('item_type'):
+        logging.error(f"'item_type' is required. Skipping item: {item_name}.")
+        return False
+    # todo: unused currently, does this have a purpose?
+    item_type = config.get('item_type')     
+    csv_data = collect_csv_data(config)
+    if csv_data is None:
+        logging.warning(f"Skipping item {item_name} due to failed parsing of input file.")
+        return False
+    # something was returned, point data_object to it for processing
+    #print(f"csv_data: {csv_data}")
+    df = csv_data  
+    return df
+
+def process_json_source(config):
+    item_name = config.get('item_name', 'NA')
+    if not config.get('item_type'):
+        logging.error(f"'item_type' is required. Skipping item: {item_name}.")
+        return False
+    # unused currently, does this have a purpose?
+    item_type = config.get('item_type')     
+    json_data = collect_json_data(config)
+    if json_data is None:
+        logging.warning(f"Skipping item {item_name} due to failed parsing of input file.")
+        return False
+    # something was returned, point data_object to it for processing
+    #print(f"json_data: {json_data}")
+    df = json_data       
+    return df
+
+def generate_static_node(config: dict) -> Optional[pd.DataFrame]:
+    """
+    Creates a single-row DataFrame from static configuration.
+    Serializes 'static_id', 'static_name', 'static_kind', and all keys
+    from the 'properties' dictionary directly into DataFrame columns.
+
+    Parameters:
+    - config: The edge configuration dictionary that contains the static data to map.    
+    """
+    node_id = config.get('static_id', 'NA')
+    node_name = config.get('static_name', 'NA')
+    node_kind = config.get('static_kind', 'NA')
+    
+    # default to an empty dict if missing to avoid errors during unpacking
+    node_properties = config.get('properties', {}) 
+
+    # base data dictionary
+    base_data = {
+        "id": node_id,
+        "name": node_name,
+        "kind": node_kind
+    }
+    
+    # use the dictionary unpacking operator (**) to merge properties into the base data dictionary.
+    data_row = {
+        **base_data,
+        **node_properties
+    }
+
+    # create the dataframe from a list containing the single data dictionary
+    data_series = [data_row]
+    df = pd.DataFrame(data_series)
+    # return dataframe for transformation processing
+    return df
+
+def generate_static_edge(config):
+    """
+    Prepares a DataFrame to be processed by transform_edge by collecting static values from the config dictionary.
+
+    Parameters:
+    - config: The edge configuration dictionary that contains the static data to map.
+    """    
+    edge_name = config.get('edge_name', 'NA')
+    start_id = config.get('start_id', 'NA')
+    end_id = config.get('end_id', 'NA')
+    source_column = config.get('source_column', 'NA')
+    target_column = config.get('target_column', 'NA')
+    # setup a dictionary with the details that the tranformation method expects
+    # if nothing is getting changed, this could all just be passed by the config dict and this whole call can be avoided. 
+    # but there may be some use for this level of control - leaving as the config values may be streamlined soon
+    base_data = [{
+        "start_id": start_id,
+        "end_id": end_id,
+        "edge_type": "static",
+        "edge_name": edge_name,
+        "source_column": source_column,
+        "target_column": target_column
+    }]
+    # create dataframe
+    df = pd.DataFrame(base_data)
+    # return dataframe for transformation processing
+    return df
+
+def prepare_static_start_edge_data(df: pd.DataFrame, config: dict):
+    """
+    Prepares a DataFrame for transform_edge by injecting static ID values.
+
+    Parameters:
+    - df: The DataFrame returned by a collector (contains the dynamic start node data).
+    - config: The edge configuration dictionary.
+    """
+        
+    edge_name = config.get('edge_name', 'DEFAULT_EDGE')
+    static_start_id = config.get('start_id') # The static ID value
+    target_column = config.get('target_column') # Column holding dynamic end ID
+    
+    # validation checks
+    if target_column not in df.columns or static_start_id is None:
+        logging.error(f"Missing required data or config for edge '{edge_name}'.")
+        return False
+    
+    # the 'transform_edge' function expects the data to be in the 'source_column' and 'target_column' before the start/end ID calculation.
+    # Assign the static ID to the column defined as the 'source_column' in the config.
+    df[config['source_column']] = str(static_start_id).strip()
+
+    # The 'target_column' already holds the dynamic ID, so no change is needed there.
+    # inject the static edge name into the config for transform_edge
+    config['edge_name'] = edge_name
+    config['edge_type'] = 'static'
+    
+    # return the prepared dataframe
+    return df
+
+def prepare_static_end_edge_data(df: pd.DataFrame, config: dict):
+    """
+    Prepares a DataFrame for transform_edge by injecting static ID values.
+
+    Parameters:
+    - df: The DataFrame returned by a collector (contains the dynamic start node data).
+    - config: The edge configuration dictionary.
+    """
+        
+    edge_name = config.get('edge_name', 'DEFAULT_EDGE')
+    source_column = config.get('source_column') # Column holding dynamic start ID
+    static_end_id = config.get('end_id') # The static ID value
+
+    # validation checks
+    if source_column not in df.columns or static_end_id is None:
+        logging.error(f"Missing required data or config for edge '{edge_name}'.")
+        return pd.DataFrame() # Return empty dataframe on failure
+    
+    # the 'transform_edge' function expects the data to be in the 'source_column' and 'target_column' before the start/end ID calculation.
+    # Assign the static ID to the column defined as the 'target_column' in the config.
+    df[config['target_column']] = str(static_end_id).strip()
+
+    # The 'source_column' already holds the dynamic ID, so no change is needed there.
+    # inject the static edge name into the config for transform_edge
+    config['edge_name'] = edge_name
+    config['edge_type'] = 'static'
+    
+    # return the prepared dataframe
+    return df
+
+def generate_hybrid_edge(config):
+    """
+    Generates a hybrid edge DataFrame by dynamically selecting a data source
+    and applying the appropriate transformation.
+    """
+    edge_name = config.get('edge_name', 'NA')
+    dynamic_element = config.get('dynamic_element')
+    df = None # Initialize DataFrame to ensure it's defined
+    
+    # Select the configuration key that holds the source type based on 'dynamic_element'
+    if dynamic_element == "start":
+        source_type_key = 'start_source_type'
+    elif dynamic_element in (None, "end"): # Assuming default is 'end' if dynamic_element is not 'start'
+        source_type_key = 'end_source_type'
+        # start_id only seems used in this branch, but is otherwise unused.
+        # start_id = config.get('start_id', 'NA')
+    else:
+        # Handle unexpected dynamic_element value gracefully
+        raise ValueError(f"Invalid dynamic_element value: {dynamic_element}. Must be 'start', 'end', or None.")
+
+    source_type = config.get(source_type_key)
+
+    # dictionary mapping for source processing functions
+    # todo: am i missing static here?
+    source_processors = {
+        "url": process_http_source,
+        "ldap": process_ldap_source,
+        "csv": process_csv_source,
+        "json": process_json_source,
+    }
+    
+    if source_type in source_processors:          
+        # Call the corresponding function from the dictionary map
+        df = source_processors[source_type](config)
+    else:
+        raise ValueError(f"Unsupported source_type: {source_type} in configuration key '{source_type_key}'")
+
+    transformed_df = None
+
+    if dynamic_element == "start":
+        # Note: The original code used 'prepare_static_end_edge_data' for dynamic_element == "start"
+        transformed_df = prepare_static_end_edge_data(df, config)
+    elif dynamic_element in ("end", None): # Assuming 'end' or no dynamic_element uses the static_start logic
+        # Note: The original code used 'prepare_static_start_edge_data' for all other cases
+        transformed_df = prepare_static_start_edge_data(df, config)
+    
+    # source_column = config.get('source_column', 'NA')
+    # target_column = config.get('target_column', 'NA')
+
+    return transformed_df
 
 # main execution
 def main():
@@ -461,124 +747,73 @@ def main():
         except Exception as e:
             logging.error(f"An unexpected error occurred: {e}")
             sys.exit(1)      
-        
+                   
         # parse through each item in the config file
         for config in config_list:
-            item_name = config.get('item_name')
-            item_type = config.get('item_type')
+            item_name = config.get('item_name', 'NA')
+            df = None # Initialize df
 
+            if not config.get('item_type'):
+                logging.error(f"'item_type' is required. Skipping item: {item_name}.")
+                continue
+            
+            item_type = config.get('item_type')
             logging.info(f"Processing Item: {item_name} (Type: {item_type})")
 
-            if not config.get('source_type'):
-                logging.error(f"'source_type' is required. Skipping.")
-                continue
+            source_processors = {
+                "url": process_http_source,
+                "ldap": process_ldap_source,
+                "csv": process_csv_source,
+                "json": process_json_source,
+                "static": generate_static_node, # todo: does this naming make sense anymore?
+            }
 
-            source_type = config.get('source_type')
-            if source_type == "url":
-                # validation
-                if not config.get('source_url'):
-                    logging.error(f"'source_url' is required for source_type='url' (Ref: {item_name}). Skipping.")
-                    continue
+            item_type_direct_processors = {
+                "static_edge": generate_static_edge,
+                "hybrid_edge": generate_hybrid_edge,
+            }
 
-                if config.get('source_auth_type') == "bearer-token" and not config.get('source_auth_token'):
-                    logging.error(f"'source_auth_token' is required for bearer-token auth (Ref: {item_name}). Skipping.")
-                    continue
-
-                # retrieve data from API endpoint defined in tranformation (config)
-                api_response = collect_http_data(config, API_SESSION)
-
-                # todo: add debug output control with additional debug statements
-                #logging.debug(f"api_response: {api_response}") 
+            # handle special item types that process directly (e.g., static_edge)
+            if item_type in item_type_direct_processors:                
+                df = item_type_direct_processors[item_type](config)
                 
-                if api_response is None:
-                    logging.warning(f"Skipping item {item_name} due to failed API response.")
-                    continue
-
-                # retrieve the root data element
-                data_root_element = config.get('data_root')
-                if not data_root_element:
-                    logging.error(f"'data_root' element is missing for item {item_name}. Skipping.")
+            # handle 'node' and 'edge' items that rely on 'source_type' lookup
+            elif item_type in ("node", "edge"):
+                if not config.get('source_type'):
+                    logging.error(f"'source_type' is required. Skipping item: {item_name}.")
                     continue
                     
-                # create a jsonpath expression to find all matches for the data root element recursively             
-                jsonpath_expression = jsonpath_parse(f'$..{data_root_element}')
-                # check the API response for jsonpath_expression
-                path_matches = jsonpath_expression.find(api_response)
+                source_type = config.get('source_type')
                 
-                # no matches
-                if not path_matches:
-                    logging.error(f"Could not find data root element: {data_root_element} for item {item_name}. Skipping.")
+                # Use the source_processors dictionary for the dynamic lookup
+                if source_type in source_processors:
+                    df = source_processors[source_type](config)
+                else:
+                    logging.warning(f"Source type '{source_type}' is not yet implemented. Skipping item {item_name}.")
                     continue
-
-                first_match = path_matches[0]
-                data_object = first_match.value
-                
-                ## todo: add check to validate data_object
-                try:
-                    # sanitize the data to prevent unintended data conversions during the pd.json_normalize operation
-                    # without this, integer values can be converted into floats
-                    clean_data_object = replace_none_with_string_null(data_object)
-                    # flatten JSON
-                    df = pd.json_normalize(clean_data_object)
-                    #df = pd.json_normalize(data_object)
-                except Exception as e:
-                    logging.error(f"Failed to normalize data for item {item_name}: {e}. Skipping.")
-                    continue
-            elif source_type == "ldap":
-                ldap_password = getpass.getpass("LDAP Bind Password: ")
-                # retrieve data from ldap
-                ldap_data = collect_ldap_data(config, ldap_password)
-                if ldap_data is None:
-                    logging.warning(f"Skipping item {item_name} due to failed LDAP connection/search.")
-                    continue
-                # something was returned, point data_object to it for processing
-                data_object = ldap_data
-                ## todo: add check to validate data_object
-                try:
-                    # sanitize the data to prevent unintended data conversions during the pd.json_normalize operation
-                    # without this, integer values can be converted into floats
-                    clean_data_object = replace_none_with_string_null(data_object)
-                    # flatten JSON
-                    df = pd.json_normalize(clean_data_object)
-                    #df = pd.json_normalize(data_object)
-                except Exception as e:
-                    logging.error(f"Failed to normalize data for item {item_name}: {e}. Skipping.")
-                    continue
-            elif source_type == "csv":
-                csv_data = collect_csv_data(config)
-                if csv_data is None:
-                    logging.warning(f"Skipping item {item_name} due to failed parsing of input file.")
-                    continue
-                # something was returned, point data_object to it for processing
-                #print(f"csv_data: {csv_data}")
-                df = csv_data  
-            elif source_type == "json":
-                json_data = collect_json_data(config)
-                if json_data is None:
-                    logging.warning(f"Skipping item {item_name} due to failed parsing of input file.")
-                    continue
-                # something was returned, point data_object to it for processing
-                #print(f"json_data: {json_data}")
-                df = json_data                                                                  
+                    
+            # all other unknown item types
             else:
-                logging.warning(f"Source type '{source_type}' is not yet implemented. Skipping item {item_name}.")
-                
-                ## todo: add check to validate data_object
-                try:
-                    # sanitize the data to prevent unintended data conversions during the pd.json_normalize operation
-                    # without this, integer values can be converted into floats
-                    clean_data_object = replace_none_with_string_null(data_object)
-                    # flatten JSON
-                    df = pd.json_normalize(clean_data_object)
-                    #df = pd.json_normalize(data_object)
-                except Exception as e:
-                    logging.error(f"Failed to normalize data for item {item_name}: {e}. Skipping.")
-                    continue
+                logging.warning(f"Item type '{item_type}' is not yet implemented. Skipping item {item_name}.")
+                continue
+            
+            if df is False:
+                logging.error("DataFrame object is invalid. Collection likely failed. Exiting.")
+                sys.exit(1)
+
+            # dictionary of transform functions
+            TRANSFORMERS = {
+                'node': transform_node,
+                'edge': transform_edge,
+                'static_edge': transform_edge,
+                'hybrid_edge': transform_edge
+            }
 
             # transform and append using dispatch dictionary
             transformer = TRANSFORMERS.get(item_type)
             if transformer:
                 # for nodes we'll pass the source_kind value, but we don't need it for edges
+                # todo: consider refactoring transformation logic to take advantage of this
                 if item_type == 'node':
                     transformed_data = transformer(df, config, source_kind)
                 else:
@@ -590,12 +825,9 @@ def main():
                 graph_structure['graph'][target_list].extend(transformed_data)
                 logging.info(f"Successfully processed {len(transformed_data)} {item_type}s.")
             else:
-                logging.error(f"Unknown item_type '{item_type}' defined for item {item_name}. Skipping.")
-
+                logging.error(f"Unable to resolve transformer function for type: '{item_type}'. Skipping.")
+                            
         # todo: add output controls
-        #logging.info("Processing complete. Dumping graph to stdout:") 
-        #json.dump(graph_structure, sys.stdout, indent=4)    
-
         output_file = args.output
         if output_file:
             logging.info(f"Writing graph to output file: {output_file}")

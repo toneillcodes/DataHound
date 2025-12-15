@@ -27,7 +27,7 @@ def collect_yaml_data(config: Dict[str, Any]) -> Union[Dict, List, None]:
         logging.error(json.dumps({
             "event": "CONFIG_ERROR",
             "correlation_id": correlation_id,
-            "message": "Missing 'source_path' in config for YAML collector."
+            "message": "Missing 'input_file' in config for YAML collector."
         }))
         return None
     
