@@ -236,7 +236,6 @@ def transform_node(input_object: pd.DataFrame, config: dict, source_kind: str):
             df[source_path] = df.apply(lambda row: get_nested(row, source_path), axis=1)
             
     df_renamed = df.rename(columns=column_mapping)
-    #print(f"df_renamed: {df_renamed}")
 
     # Filter to requested target columns (post-rename names)
     valid_cols = [col for col in target_columns if col in df_renamed.columns]
@@ -249,8 +248,6 @@ def transform_node(input_object: pd.DataFrame, config: dict, source_kind: str):
         .astype(str)
         .copy()
     )
-
-    #print(f"df_transformed: {df_transformed}")
 
     # resolve id with dot-path support
     if id_location in df_transformed.columns:

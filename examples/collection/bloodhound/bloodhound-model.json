@@ -20,10 +20,17 @@
         "name": "gear",
         "color": "#ffb303"
       }
+    },
+    "BHTenant": {
+      "icon": {
+        "type": "font-awesome",
+        "name": "building",
+        "color": "#a1a1a1"
+      }
     }
   },
   "metadata": {
-    "version": "1.0",
+    "version": "2.0",
     "description": "BloodHound Security model for BloodHound",
     "author": "Tom O'Neill",
     "created": "202511",

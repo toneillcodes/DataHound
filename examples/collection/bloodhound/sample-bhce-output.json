@@ -5,6 +5,151 @@
     "graph": {
         "nodes": [
             {
+                "id": "http://127.0.0.1:8080",
+                "kinds": [
+                    "BHTenant",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": "http://127.0.0.1:8080",
+                    "tenant_id": "example.org",
+                    "name": "bhce.example.org",
+                    "organization_name": "Example Organization"
+                }
+            },
+            {
+                "id": "auth",
+                "kinds": [
+                    "BHAuthority",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": "auth"
+                }
+            },
+            {
+                "id": "collection",
+                "kinds": [
+                    "BHAuthority",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": "collection"
+                }
+            },
+            {
+                "id": "db",
+                "kinds": [
+                    "BHAuthority",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": "db"
+                }
+            },
+            {
+                "id": "app",
+                "kinds": [
+                    "BHAuthority",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": "app"
+                }
+            },
+            {
+                "id": "saved_queries",
+                "kinds": [
+                    "BHAuthority",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": "saved_queries"
+                }
+            },
+            {
+                "id": "clients",
+                "kinds": [
+                    "BHClients",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": "clients"
+                }
+            },
+            {
+                "id": "graphdb",
+                "kinds": [
+                    "BHAuthority",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": "graphdb"
+                }
+            },
+            {
+                "id": "risks",
+                "kinds": [
+                    "BHAuthority",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": "risks"
+                }
+            },
+            {
+                "id": "c8ed9290-2f91-4109-8b79-ac99a6bd5f82",
+                "kinds": [
+                    "BHUser",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": "c8ed9290-2f91-4109-8b79-ac99a6bd5f82",
+                    "name": "ntester1",
+                    "email": "097ef6c2-applicationdeveloper@phantomcorp.onmicrosoft.com",
+                    "last_login": "0001-01-01T00:00:00Z"
+                }
+            },
+            {
+                "id": "bcac9827-1fc4-430d-ae1d-13115c13811d",
+                "kinds": [
+                    "BHUser",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": "bcac9827-1fc4-430d-ae1d-13115c13811d",
+                    "name": "ssmith25",
+                    "email": "097ef6c2-attackpayloadauthor@phantomcorp.onmicrosoft.com",
+                    "last_login": "0001-01-01T00:00:00Z"
+                }
+            },
+            {
+                "id": "1943a822-122c-428f-b027-a91891a91933",
+                "kinds": [
+                    "BHUser",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": "1943a822-122c-428f-b027-a91891a91933",
+                    "name": "toneill",
+                    "email": "097ef6c2-attacksimulationadministrator@phantomcorp.onmicrosoft.com",
+                    "last_login": "0001-01-01T00:00:00Z"
+                }
+            },
+            {
+                "id": "eee5feab-8a23-4c37-8c4d-6f76c5b35a34",
+                "kinds": [
+                    "BHUser",
+                    "BHCE"
+                ],
+                "properties": {
+                    "id": "eee5feab-8a23-4c37-8c4d-6f76c5b35a34",
+                    "name": "aardvark",
+                    "email": "097ef6c2-applicationadministrator@phantomcorp.onmicrosoft.com",
+                    "last_login": "0001-01-01T00:00:00Z"
+                }
+            },
+            {
                 "id": "0f916532-08f7-47f4-bf1b-37b2317cce1b",
                 "kinds": [
                     "BHUser",
@@ -12,8 +157,9 @@
                 ],
                 "properties": {
                     "id": "0f916532-08f7-47f4-bf1b-37b2317cce1b",
-                    "username": "admin",
-                    "last": "2025-11-16T11:24:14.401684Z"
+                    "name": "admin",
+                    "email": "spam@example.com",
+                    "last_login": "2025-12-15T22:37:10.350551Z"
                 }
             },
             {
@@ -78,7 +224,7 @@
                     "BHCE"
                 ],
                 "properties": {
-                    "id": 1,
+                    "id": "1",
                     "name": "ReadAppConfig",
                     "created_at": "2025-10-01T02:25:46.511867Z"
                 }
@@ -90,7 +236,7 @@
                     "BHCE"
                 ],
                 "properties": {
-                    "id": 2,
+                    "id": "2",
                     "name": "WriteAppConfig",
                     "created_at": "2025-10-01T02:25:46.511867Z"
                 }
@@ -102,7 +248,7 @@
                     "BHCE"
                 ],
                 "properties": {
-                    "id": 3,
+                    "id": "3",
                     "name": "GenerateReport",
                     "created_at": "2025-10-01T02:25:46.511867Z"
                 }
@@ -114,7 +260,7 @@
                     "BHCE"
                 ],
                 "properties": {
-                    "id": 4,
+                    "id": "4",
                     "name": "ManageRisks",
                     "created_at": "2025-10-01T02:25:46.511867Z"
                 }
@@ -126,7 +272,7 @@
                     "BHCE"
                 ],
                 "properties": {
-                    "id": 5,
+                    "id": "5",
                     "name": "CreateToken",
                     "created_at": "2025-10-01T02:25:46.511867Z"
                 }
@@ -138,7 +284,7 @@
                     "BHCE"
                 ],
                 "properties": {
-                    "id": 6,
+                    "id": "6",
                     "name": "ManageAppConfig",
                     "created_at": "2025-10-01T02:25:46.511867Z"
                 }
@@ -150,7 +296,7 @@
                     "BHCE"
                 ],
                 "properties": {
-                    "id": 7,
+                    "id": "7",
                     "name": "ManageProviders",
                     "created_at": "2025-10-01T02:25:46.511867Z"
                 }
@@ -162,7 +308,7 @@
                     "BHCE"
                 ],
                 "properties": {
-                    "id": 8,
+                    "id": "8",
                     "name": "ManageSelf",
                     "created_at": "2025-10-01T02:25:46.511867Z"
                 }
@@ -174,7 +320,7 @@
                     "BHCE"
                 ],
                 "properties": {
-                    "id": 9,
+                    "id": "9",
                     "name": "ManageUsers",
                     "created_at": "2025-10-01T02:25:46.511867Z"
                 }
@@ -186,7 +332,7 @@
                     "BHCE"
                 ],
                 "properties": {
-                    "id": 10,
+                    "id": "10",
                     "name": "Manage",
                     "created_at": "2025-10-01T02:25:46.511867Z"
                 }
@@ -198,7 +344,7 @@
                     "BHCE"
                 ],
                 "properties": {
-                    "id": 11,
+                    "id": "11",
                     "name": "Tasking",
                     "created_at": "2025-10-01T02:25:46.511867Z"
                 }
@@ -210,7 +356,7 @@
                     "BHCE"
                 ],
                 "properties": {
-                    "id": 12,
+                    "id": "12",
                     "name": "ManageJobs",
                     "created_at": "2025-10-01T02:25:46.511867Z"
                 }
@@ -222,7 +368,7 @@
                     "BHCE"
                 ],
                 "properties": {
-                    "id": 13,
+                    "id": "13",
                     "name": "Read",
                     "created_at": "2025-10-01T02:25:46.511867Z"
                 }
@@ -234,7 +380,7 @@
                     "BHCE"
                 ],
                 "properties": {
-                    "id": 14,
+                    "id": "14",
                     "name": "Write",
                     "created_at": "2025-10-01T02:25:46.511867Z"
                 }
@@ -246,7 +392,7 @@
                     "BHCE"
                 ],
                 "properties": {
-                    "id": 15,
+                    "id": "15",
                     "name": "Read",
                     "created_at": "2025-10-01T02:25:46.511867Z"
                 }
@@ -258,7 +404,7 @@
                     "BHCE"
                 ],
                 "properties": {
-                    "id": 16,
+                    "id": "16",
                     "name": "Write",
                     "created_at": "2025-10-01T02:25:46.511867Z"
                 }
@@ -270,7 +416,7 @@
                     "BHCE"
                 ],
                 "properties": {
-                    "id": 17,
+                    "id": "17",
                     "name": "Read",
                     "created_at": "2025-10-01T02:25:46.511867Z"
                 }
@@ -282,7 +428,7 @@
                     "BHCE"
                 ],
                 "properties": {
-                    "id": 18,
+                    "id": "18",
                     "name": "Wipe",
                     "created_at": "2025-10-01T02:25:46.511867Z"
                 }
@@ -294,7 +440,7 @@
                     "BHCE"
                 ],
                 "properties": {
-                    "id": 19,
+                    "id": "19",
                     "name": "Mutate",
                     "created_at": "2025-10-01T02:25:46.511867Z"
                 }
@@ -306,7 +452,7 @@
                     "BHCE"
                 ],
                 "properties": {
-                    "id": 20,
+                    "id": "20",
                     "name": "Ingest",
                     "created_at": "2025-10-01T02:25:46.666306Z"
                 }
@@ -318,13 +464,65 @@
                     "BHCE"
                 ],
                 "properties": {
-                    "id": 21,
+                    "id": "21",
                     "name": "ReadUsers",
                     "created_at": "2025-10-01T02:25:46.73288Z"
+                }
+            },
+            {
+                "id": "1",
+                "kinds": [
+                    "BHSSOProvider",
+                    "BHCE"
+                ],
+                "properties": {
+                    "name": "example-idp",
+                    "displayName": "example-idp",
+                    "idp_issuer_uri": "https://idp.example.edu/samlsso",
+                    "idp_sso_uri": "https://idp.example.edu/samlsso",
+                    "principal_attribute_mappings": "null",
+                    "sso_provider_id": "1",
+                    "created_at": "2025-12-04T20:07:16.852774Z"
                 }
             }
         ],
         "edges": [
+            {
+                "kind": "AssignedTo",
+                "start": {
+                    "value": "c8ed9290-2f91-4109-8b79-ac99a6bd5f82"
+                },
+                "end": {
+                    "value": "User"
+                }
+            },
+            {
+                "kind": "AssignedTo",
+                "start": {
+                    "value": "bcac9827-1fc4-430d-ae1d-13115c13811d"
+                },
+                "end": {
+                    "value": "Read-Only"
+                }
+            },
+            {
+                "kind": "AssignedTo",
+                "start": {
+                    "value": "1943a822-122c-428f-b027-a91891a91933"
+                },
+                "end": {
+                    "value": "Power User"
+                }
+            },
+            {
+                "kind": "AssignedTo",
+                "start": {
+                    "value": "eee5feab-8a23-4c37-8c4d-6f76c5b35a34"
+                },
+                "end": {
+                    "value": "User"
+                }
+            },
             {
                 "kind": "AssignedTo",
                 "start": {
@@ -827,6 +1025,60 @@
                 },
                 "end": {
                     "value": "auth"
+                }
+            },
+            {
+                "kind": "ProviderFor",
+                "start": {
+                    "value": "1"
+                },
+                "end": {
+                    "value": "eee5feab-8a23-4c37-8c4d-6f76c5b35a34"
+                }
+            },
+            {
+                "kind": "BelongsTo",
+                "start": {
+                    "value": "c8ed9290-2f91-4109-8b79-ac99a6bd5f82"
+                },
+                "end": {
+                    "value": "http://127.0.0.1:8080"
+                }
+            },
+            {
+                "kind": "BelongsTo",
+                "start": {
+                    "value": "bcac9827-1fc4-430d-ae1d-13115c13811d"
+                },
+                "end": {
+                    "value": "http://127.0.0.1:8080"
+                }
+            },
+            {
+                "kind": "BelongsTo",
+                "start": {
+                    "value": "1943a822-122c-428f-b027-a91891a91933"
+                },
+                "end": {
+                    "value": "http://127.0.0.1:8080"
+                }
+            },
+            {
+                "kind": "BelongsTo",
+                "start": {
+                    "value": "eee5feab-8a23-4c37-8c4d-6f76c5b35a34"
+                },
+                "end": {
+                    "value": "http://127.0.0.1:8080"
+                }
+            },
+            {
+                "kind": "BelongsTo",
+                "start": {
+                    "value": "0f916532-08f7-47f4-bf1b-37b2317cce1b"
+                },
+                "end": {
+                    "value": "http://127.0.0.1:8080"
                 }
             }
         ]
