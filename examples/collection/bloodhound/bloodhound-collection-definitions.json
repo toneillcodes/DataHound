@@ -6,16 +6,10 @@
         "source_type": "static",
 		"static_id": "http://127.0.0.1:8080",
 		"static_name": "Docker BHCE",
-		"static_kind": "BHTenant",
 		"properties": {
 			"tenant_id": "example.org",
 			"name": "bhce.example.org",
 			"organization_name": "Example Organization"
-		},
-        "column_mapping": {
-            "tenant_id": "tenant_id",
-			"name": "name",
-			"organization_name": "organization_name"
 		},
         "output_columns": [            
             "id",
@@ -34,10 +28,6 @@
         "source_type": "static",
 		"static_id": "auth",
 		"static_name": "auth",
-		"static_kind": "BHAuthority",
-        "column_mapping": {
-            "id": "id"
-		},
         "output_columns": [            
             "id"
         ],
@@ -52,10 +42,6 @@
         "source_type": "static",
 		"static_id": "collection",
 		"static_name": "collection",
-		"static_kind": "BHAuthority",
-        "column_mapping": {
-            "id": "id"
-		},
         "output_columns": [            
             "id"
         ],
@@ -70,10 +56,6 @@
         "source_type": "static",
 		"static_id": "db",
 		"static_name": "db",
-		"static_kind": "BHAuthority",
-        "column_mapping": {
-            "id": "id"
-		},
         "output_columns": [            
             "id"
         ],
@@ -88,10 +70,6 @@
         "source_type": "static",
 		"static_id": "app",
 		"static_name": "app",
-		"static_kind": "BHAuthority",
-        "column_mapping": {
-            "id": "id"
-		},
         "output_columns": [            
             "id"
         ],
@@ -106,10 +84,6 @@
         "source_type": "static",
 		"static_id": "saved_queries",
 		"static_name": "saved_queries",
-		"static_kind": "BHAuthority",
-        "column_mapping": {
-            "id": "id"
-		},
         "output_columns": [            
             "id"
         ],
@@ -124,10 +98,6 @@
         "source_type": "static",
 		"static_id": "clients",
 		"static_name": "clients",
-		"static_kind": "BHClients",
-        "column_mapping": {
-            "id": "id"
-		},
         "output_columns": [            
             "id"
         ],
@@ -142,10 +112,6 @@
         "source_type": "static",
 		"static_id": "graphdb",
 		"static_name": "graphdb",
-		"static_kind": "BHAuthority",
-        "column_mapping": {
-            "id": "id"
-		},
         "output_columns": [            
             "id"
         ],
@@ -160,10 +126,6 @@
         "source_type": "static",
 		"static_id": "risks",
 		"static_name": "risks",
-		"static_kind": "BHAuthority",
-        "column_mapping": {
-            "id": "id"
-		},
         "output_columns": [            
             "id"
         ],

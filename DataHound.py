@@ -148,10 +148,8 @@ def connect_graphs(graph_a: str, root_a: str,  id_a:str, match_a: str, graph_b: 
         df1_subset = df1[[id_a, match_a]].copy()
         df2_subset = df2[[id_b, match_b]].copy()
         
-        #print("df1_subset:")
-        #print(df1_subset)
-        #print("df2_subset:")
-        #print(df2_subset)
+        #print(f"df1_subset: {df1_subset}")
+        #print("df2_subset: {df2_subset}")
     
         # perform outer merge using the match columns as our key
         merged_df = pd.merge(
@@ -162,13 +160,11 @@ def connect_graphs(graph_a: str, root_a: str,  id_a:str, match_a: str, graph_b: 
             how='outer',
             indicator=True            
         )
-        #print("merged_df:")
-        #print(merged_df)
+        #print("merged_df: {merged_df}")
 
         # Matched nodes only
         success_df = merged_df[merged_df['_merge'] == 'both'].copy()
-        #print("success_df:")
-        #print(success_df)
+        #print(f"success_df: {success_df}")
 
         success_output = success_df.rename(columns={id_a: 'start_value', id_b: 'end_value'})[['start_value', 'end_value']]
 
@@ -221,11 +217,8 @@ def transform_node(input_object: pd.DataFrame, config: dict, source_kind: str):
     target_columns: List[str] = config.get('output_columns', [])
     item_kind: str = config['item_kind']
     id_location: str = config['id_location']
-    source_type = config.get('source_type')
-
+    
     df = input_object.copy()
-
-    #print(f"df: {df}")
 
     # We only need to materialize a column for a source key if it's dotted (contains '.')
     # or if the DF doesn't already have that column name.
@@ -236,6 +229,7 @@ def transform_node(input_object: pd.DataFrame, config: dict, source_kind: str):
             df[source_path] = df.apply(lambda row: get_nested(row, source_path), axis=1)
             
     df_renamed = df.rename(columns=column_mapping)
+    #print(f"df_renamed: {df_renamed}")
 
     # Filter to requested target columns (post-rename names)
     valid_cols = [col for col in target_columns if col in df_renamed.columns]
@@ -257,6 +251,7 @@ def transform_node(input_object: pd.DataFrame, config: dict, source_kind: str):
         id_series = df.apply(lambda row: get_nested(row, id_location), axis=1)
 
     records = df_transformed.to_dict('records')
+    #print(f"records: {records}")
 
     # Convert the id_series to a list for zipping
     id_list = id_series.astype(str).tolist() # Convert to list of strings for safety
@@ -314,6 +309,8 @@ def transform_edge(input_object: pd.DataFrame, config: dict):
         (df[source_col].astype(str) != "None") &
         (df[source_col].astype(str) != "null")
     ]
+
+    ## todo: add logic to handle situations where no ouput_columns are provided - pass an don't modify the df
 
     # we may not want everything, so filter the columns
     target_columns: List[str] = config.get('output_columns', [])
@@ -420,23 +417,25 @@ def process_http_source(config):
 
     # retrieve the root data element
     data_root_element = config.get('data_root')
-    if not data_root_element:
-        logging.error(f"'data_root' element is missing for item {item_name}. Skipping.")
-        return False
+    if data_root_element:
+        # create a jsonpath expression to find all matches for the data root element recursively             
+        jsonpath_expression = jsonpath_parse(f'$..{data_root_element}')
+        # check the API response for jsonpath_expression
+        path_matches = jsonpath_expression.find(api_response)
         
-    # create a jsonpath expression to find all matches for the data root element recursively             
-    jsonpath_expression = jsonpath_parse(f'$..{data_root_element}')
-    # check the API response for jsonpath_expression
-    path_matches = jsonpath_expression.find(api_response)
-    
-    # no matches
-    if not path_matches:
-        logging.error(f"Could not find data root element: {data_root_element} for item {item_name}. Skipping.")
-        return False
+        # no matches
+        if not path_matches:
+            logging.error(f"Could not find data root element: {data_root_element} for item {item_name}. Skipping.")
+            return False
 
-    first_match = path_matches[0]
-    data_object = first_match.value
-    
+        first_match = path_matches[0]
+        data_object = first_match.value
+    else:
+        data_object = api_response
+
+    #print(f"data_object: {data_object}")
+    #print(f"data_object: {data_object['erpIdentifier']}")
+
     ## todo: add check to validate data_object
     try:
         # sanitize the data to prevent unintended data conversions during the pd.json_normalize operation
@@ -445,6 +444,7 @@ def process_http_source(config):
         # flatten JSON
         df = pd.json_normalize(clean_data_object)
         #df = pd.json_normalize(data_object)
+        print(f"df: {df}")
         return df
     except Exception as e:
         logging.error(f"Failed to normalize data for item {item_name}: {e}. Skipping.")
@@ -520,17 +520,23 @@ def generate_static_node(config: dict) -> Optional[pd.DataFrame]:
     - config: The edge configuration dictionary that contains the static data to map.    
     """
     node_id = config.get('static_id', 'NA')
-    node_name = config.get('static_name', 'NA')
-    node_kind = config.get('static_kind', 'NA')
-    
+    node_name = config.get('static_name', 'NA')    
     # default to an empty dict if missing to avoid errors during unpacking
     node_properties = config.get('properties', {}) 
 
+    '''
     # base data dictionary
     base_data = {
         "id": node_id,
         "name": node_name,
         "kind": node_kind
+    }
+    '''
+
+    # base data dictionary
+    base_data = {
+        "id": node_id,
+        "name": node_name
     }
     
     # use the dictionary unpacking operator (**) to merge properties into the base data dictionary.

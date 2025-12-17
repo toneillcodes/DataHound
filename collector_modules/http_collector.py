@@ -4,7 +4,7 @@ import logging
 import json
 import uuid
 
-def collect_http_data(config, session=None):
+def collect_http_data(config, session=None, url_params=None):
     """
     Calls an HTTP endpoint using the provided configuration and session.
     Returns raw JSON if successful, otherwise None.
@@ -13,12 +13,11 @@ def collect_http_data(config, session=None):
     # generate correlation ID
     correlation_id = str(uuid.uuid4())
 
-    request_url = config.get('source_url')
-    request_auth_token = config.get('source_auth_token')
+    source_url = config.get('source_url')
     source_auth_type = config.get('source_auth_type')
 
     # this shouldn't happen, but let's make sure we have what we need
-    if not request_url:
+    if not source_url:
         logging.error(json.dumps({
             "event": "CONFIG_ERROR",
             "correlation_id": correlation_id,
@@ -26,14 +25,45 @@ def collect_http_data(config, session=None):
         }))
         return None
 
+    # url substitution logic for passing a templatized URL in the config with variables in the method params (url_params)
+    if source_url and url_params:
+        try:
+            # .format(**url_params) maps keys in the dict to {placeholders}
+            request_url = source_url.format(**url_params)
+        except KeyError as e:
+            logging.error(json.dumps({
+                "event": "URL_FORMAT_ERROR",
+                "correlation_id": correlation_id,
+                "message": f"Missing required placeholder key: {str(e)}"
+            }))
+            return None
+    else:
+        request_url = source_url
+
     req_headers = {
         "Accept": "application/json"
     }
-    if source_auth_type == "bearer-token" and request_auth_token:
+    req_cookies = {}
+
+    if source_auth_type == "bearer-token":
+        request_auth_token = config.get('source_auth_token')
         req_headers["Authorization"] = f"Bearer {request_auth_token}"
+    
+    elif source_auth_type == "cookie":        
+        cookie_name = config.get('source_cookie_name')      
+        request_auth_token = config.get('source_auth_token')
+        if not cookie_name or not request_auth_token:
+            logging.error(json.dumps({
+                "event": "INVALID_CONFIG",
+                "correlation_id": correlation_id,
+                "message": f"The 'source_cookie_name' and 'source_auth_token' properties are required when source_auth_type == cookie"
+            }))
+            return None            
+        else:
+            req_cookies[cookie_name] = request_auth_token
 
     try:
-        response = session.get(request_url, headers=req_headers, timeout=30)
+        response = session.get(request_url, headers=req_headers, cookies=req_cookies, timeout=30)
         elapsed_time = response.elapsed.total_seconds()
 
         # Structured info logging the sent request

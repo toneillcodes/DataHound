@@ -59,7 +59,7 @@ The collect operation extracts raw data from external sources (APIs, databases, 
 1. Reads a JSON configuration file defining the source and transformation rules.
 2. Calls the specified data source to collect raw data.
 3. Transforms the raw data into a Pandas DataFrame for efficient processing.
-4. Creates the final BloodHound OpenGraph nodes and edges.
+4. Creates the final BloodHound OpenGraph nodes and edges by calling transformation methods.
 
 #### Collect Usage
 ```

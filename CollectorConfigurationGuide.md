@@ -5,7 +5,36 @@ The DataHound Collector Configuration file defines the what, where, and how of d
 The file must be a JSON array containing one or more collector definition objects:
 ```
 [
-    // Collector 1: Defines how to collect User data
+    // Collector 1: Defines a static node for the BHCE tenant
+    {
+        "item_type": "node",
+        "item_name": "Tenant",
+        "item_description": "Tenant for the BloodHound instance",
+        "source_type": "static",
+		"static_id": "http://127.0.0.1:8080",
+		"static_name": "Docker BHCE",
+		"static_kind": "BHTenant",
+		"properties": {
+			"tenant_id": "example.org",
+			"name": "bhce.example.org",
+			"organization_name": "Example Organization"
+		},
+        "column_mapping": {
+            "tenant_id": "tenant_id",
+			"name": "name",
+			"organization_name": "organization_name"
+		},
+        "output_columns": [            
+            "id",
+			"tenant_id",
+			"name",
+			"organization_name"
+        ],
+        "id_location": "id",        		
+        "item_kind": "BHTenant",
+		"source_name": "bloodhound-collection-defs"
+    },    
+    // Collector 2: Defines how to collect User node data
     {
         "item_type": "node",
         "item_name": "Users",
@@ -29,7 +58,7 @@ The file must be a JSON array containing one or more collector definition object
         "item_kind": "BHUser",
 		"source_name": "bloodhound-users"
     },
-    // Collector 2: Defines how to collect Role data
+    // Collector 3: Defines how to collect Role node data
     {
         "item_type": "node",
         "item_name": "Roles",
@@ -51,6 +80,47 @@ The file must be a JSON array containing one or more collector definition object
         "item_kind": "BHRole",
 		"source_name": "roles"
     },
+    // Collector 4: Defines an edge with a static relationship using the 'edge_type' and 'edge_name' properties
+    {
+        "item_type": "edge",
+        "item_name": "User Roles Edges",
+        "item_description": "Users -> Role mappings in the BloodHound instance",
+        "source_type": "url",
+        "source_url": "http://127.0.0.1:8080/api/v2/bloodhound-users",
+        "source_auth_type": "bearer-token",
+        "source_auth_token": "key.key.key",
+        "data_root": "users",
+        "edge_type": "static",
+        "edge_name": "AssignedTo",
+        "source_column": "id",
+        "target_column": "roles",
+        "target_is_multi_valued": "true",
+        "target_column_id": "name",
+        "source_node_type": "BHUser",
+        "target_node_type": "BHRole",
+        "source_name": "bloodhound-users"
+    },
+    // Collector 5: Defines an edge with a dynamic relationship using the 'edge_type' and 'edge_column_id' properties
+    {
+        "item_type": "edge",
+        "item_name": "Role Permissions Edges",
+        "item_description": "Role - [Permission] -> Authority mappings found in the BloodHound instance",
+        "source_type": "url",
+        "source_url": "http://127.0.0.1:8080/api/v2/roles",
+        "source_auth_type": "bearer-token",
+        "source_auth_token": "key.key.key",
+        "data_root": "roles",
+        "edge_type": "from_column",        
+        "edge_column_id": "name",
+        "source_column": "name",
+        "target_column": "permissions",
+        "target_is_multi_valued": "true",
+        "target_multi_value_type": "array",
+        "target_column_id": "authority",        
+        "source_node_type": "BHRole",
+        "target_node_type": "BHPermission",
+        "source_name": "roles"
+    }    
     ...
 ]
 ```
