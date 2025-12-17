@@ -433,9 +433,6 @@ def process_http_source(config):
     else:
         data_object = api_response
 
-    #print(f"data_object: {data_object}")
-    #print(f"data_object: {data_object['erpIdentifier']}")
-
     ## todo: add check to validate data_object
     try:
         # sanitize the data to prevent unintended data conversions during the pd.json_normalize operation
@@ -444,7 +441,7 @@ def process_http_source(config):
         # flatten JSON
         df = pd.json_normalize(clean_data_object)
         #df = pd.json_normalize(data_object)
-        print(f"df: {df}")
+        #print(f"df: {df}")
         return df
     except Exception as e:
         logging.error(f"Failed to normalize data for item {item_name}: {e}. Skipping.")
