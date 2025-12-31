@@ -23,8 +23,7 @@ pip install -r requirements.txt
 ```
 usage: DataHound.py [-h] --operation {collect,connect} --output OUTPUT [--source-kind SOURCE_KIND] [--config CONFIG] [--graphA GRAPHA] [--rootA ROOTA] [--idA IDA] [--matchA MATCHA] [--graphB GRAPHB] [--rootB ROOTB] [--idB IDB] [--matchB MATCHB] [--edge-kind EDGE_KIND]
 
-A versatile data pipeline engine that ingests information from diverse external sources and transforms the extracted node and edge data into the
-BloodHound OpenGraph format.
+A versatile data pipeline engine that ingests information from diverse external sources and transforms the extracted node and edge data into the BloodHound OpenGraph format.
 
 options:
   -h, --help            show this help message and exit
@@ -102,21 +101,28 @@ $
 #### Supported Collectors
 | Type | Description |
 |----|----|
-| HTTP | Generic HTTP collector |
-| LDAP | Generic LDAP collector |
 | CSV | Generic file-based CSV collector |
+| DPAPI | Windows DPAPI blob and master key collector |
+| Host | Generic Host collector for Windows and Linux Computers |
+| HTTP | Generic HTTP collector |
 | JSON | Generic file-based JSON collector |
+| LDAP | Generic LDAP collector |
+| NMap | NMap XML output collector |
+| PE | Windows Portable Execuable file format collector |
+| SMB | Windows Server Message Block (SMB) share collector |
+| XML | Generic file-based XML collector |
+| YAML | Generic file-based YAML collector |
 
 * Review the [Collector Guide](CollectorGuide.md) for an expanded list of collectors in development, the status and any known limitations or issues.
 * Review the [Collector Configuration Guide](CollectorConfigurationGuide.md) for details on the JSON file format and available properties for existing collectors (e.g., ```source_type```, ```column_mapping```).
 
 #### Arguments
-| Parameter | Argument Values | Required? | Description |
+| Parameter | Argument Values | Description |
 |----|----|----|----|
-| --operation | collect | Y | The primary function to execute. |
-| --config | filename | Y | Collection definitions and transformation definitions. |
-| --source-kind | source_kind | Y | The source_kind to use in the generated graph. |
-| --output | filename | Y | Output file path for the resulting graph JSON. (Default: output_graph.json) |
+| --operation | collect | The primary function to execute. |
+| --config | filename | Collection definitions and transformation definitions. |
+| --source-kind | source_kind | The source_kind to use in the generated graph. |
+| --output | filename | Output file path for the resulting graph JSON. (Default: output_graph.json) |
 
 ### ```connect```: **Graph Correlation and Linking**
 The connect operation takes two JSON files (```--graphA``` and ```--graphB```) and creates new edges between nodes that share a common, correlatable property.
@@ -147,19 +153,19 @@ $ python DataHound.py --operation connect \
 $
 ```
 #### Arguments
-| Parameter | Argument Values | Required? | Description |
+| Parameter | Argument Values | Description |
 |----|----|----|----|
-| --operation | connect | Y | The primary function to execute. |
-| --graphA | filename | Y | File name for Graph A to connect to Graph B. |
-| --rootA | NA | Y | The data element that contains the node data to process. |
-| --idA | NA | Y | The data element that contains the node ID to use in the edge output. |
-| --matchA | NA | Y | The name of the parameter in Graph A to match on. |
-| --graphB | filename | Y | File name for Graph A to connect to Graph B. |
-| --rootB | NA | Y | The data element that contains the node data to process. |
-| --idB | NA | Y | The data element that contains the node ID to use in the edge output. |
-| --matchB | NA | Y | The name of the parameter in Graph B to match on. |
-| --edge-kind| NA | Y | The edge kind value to use for the generated JSON. |
-| --output | filename | Y | Output file path for the resulting graph JSON. (Default: output_graph.json) |
+| --operation | connect | The primary function to execute. |
+| --graphA | filename | File name for Graph A to connect to Graph B. |
+| --rootA | NA | The data element that contains the node data to process. |
+| --idA | NA | The data element that contains the node ID to use in the edge output. |
+| --matchA | NA | The name of the parameter in Graph A to match on. |
+| --graphB | filename | File name for Graph A to connect to Graph B. |
+| --rootB | NA | The data element that contains the node data to process. |
+| --idB | NA | The data element that contains the node ID to use in the edge output. |
+| --matchB | NA | The name of the parameter in Graph B to match on. |
+| --edge-kind| NA | The edge kind value to use for the generated JSON. |
+| --output | filename | Output file path for the resulting graph JSON. (Default: output_graph.json) |
 
 ## Examples
 Explore  practical examples to see DataHound in action:
@@ -175,5 +181,5 @@ Explore  practical examples to see DataHound in action:
 * Debug or verbose messages with logging
 * Support for encrypted secrets
 * Basic authentication HTTP collector
-* File based collectors using CSV and JSON formats
+* ~File based collectors using CSV and JSON formats~
 * Robust error handling
