@@ -1,9 +1,11 @@
+import xml.etree.ElementTree as ET
 from typing import Optional
 import pandas as pd
 import logging
 import json
 import uuid
-import xml.etree.ElementTree as ET
+import re
+import ipaddress
 
 from collector_modules.xml_collector import collect_xml_data
 
@@ -208,3 +210,397 @@ def collect_merged_nmap_report(xml_path, config=None):
     }))
 
     return merged_df
+
+import ipaddress
+import xml.etree.ElementTree as ET
+
+def collect_nmap_subnets_xml(xml_path, subnet_mask='/24', config=None):
+    """
+    Identifies all unique networks found in the Nmap XML results.
+    Useful for high-level network segmentation reporting.
+    """
+    correlation_id = (config or {}).get('correlation_id', str(uuid.uuid4()))
+    networks = set()
+
+    try:
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+
+        for host in root.findall(".//host"):
+            addr_tag = host.find("./address[@addrtype='ipv4']")
+            if addr_tag is not None:
+                ip_str = addr_tag.get('addr')
+                # Calculate network address (e.g., 192.168.1.0/24)
+                interface = ipaddress.IPv4Interface(f"{ip_str}{subnet_mask}")
+                networks.add(str(interface.network))
+
+        subnet_data = [{
+            "correlation_id": correlation_id,
+            "subnet": net,
+            "type": "SUBNET_IDENTIFIED"
+        } for net in networks]
+
+        return pd.DataFrame(subnet_data)
+
+    except Exception as e:
+        logging.error(json.dumps({"event": "XML_SUBNET_PARSE_ERROR", "error": str(e)}))
+        return pd.DataFrame()
+
+def collect_nmap_subnet_members_xml(xml_path, subnet_mask='/24', config=None):
+    """
+    Returns a mapping of Subnets to Hosts from Nmap XML.
+    One row per Host, enriched with its parent Subnet details.
+    """
+    correlation_id = (config or {}).get('correlation_id', str(uuid.uuid4()))
+    
+    # Use your existing host collector to get the base data
+    df_hosts = collect_nmap_hosts_xml(xml_path, config)
+    
+    if df_hosts.empty:
+        return pd.DataFrame()
+
+    mapping_rows = []
+    
+    for _, row in df_hosts.iterrows():
+        ip_str = row['ip_address']
+        if ip_str == "unknown":
+            continue
+            
+        try:
+            # Create interface to derive the network
+            interface = ipaddress.IPv4Interface(f"{ip_str}{subnet_mask}")
+            
+            mapping_rows.append({
+                "correlation_id": correlation_id,
+                "subnet": str(interface.network),
+                "ip_address": ip_str,
+                "hostname": row.get('hostname', '<unknown>'),
+                "host_status": row.get('host_status', 'unknown'),
+                "type": "SUBNET_HOST_MAP"
+            })
+        except ValueError as e:
+            logging.warning(json.dumps({"event": "INVALID_IP_ENCOUNTERED", "ip": ip_str, "error": str(e)}))
+            continue
+
+    return pd.DataFrame(mapping_rows)        
+
+def collect_full_security_manifest(xml_path, subnet_mask='/24'):
+    config = {"correlation_id": str(uuid.uuid4())}
+    
+    df_merged = collect_merged_nmap_report(xml_path, config)
+    df_subnets = collect_nmap_subnet_members_xml(xml_path, subnet_mask, config)
+    
+    if df_subnets.empty:
+        return df_merged
+
+    # Merge subnet info into the port-level data
+    return pd.merge(
+        df_merged, 
+        df_subnets[['ip_address', 'subnet']], 
+        on='ip_address', 
+        how='left'
+    )
+
+def collect_complete_nmap_manifest_xml(xml_path, subnet_mask='/24', config=None):
+    """
+    The ultimate merge: Subnet -> Host -> Port.
+    Each row represents a port, enriched with both Host and Subnet metadata.
+    """
+    correlation_id = (config or {}).get('correlation_id', str(uuid.uuid4()))
+    config = {"correlation_id": correlation_id}
+
+    # 1. Collect Port/Service data
+    df_main = collect_merged_nmap_report(xml_path, config)
+    
+    # 2. Collect Subnet Mapping
+    df_subnets = collect_nmap_subnet_members_xml(xml_path, subnet_mask, config)
+
+    if df_main.empty or df_subnets.empty:
+        return df_main
+
+    # 3. Final Merge
+    # We bring in the 'subnet' column based on ip_address
+    manifest_df = pd.merge(
+        df_main,
+        df_subnets[['ip_address', 'subnet']],
+        on='ip_address',
+        how='left'
+    )
+
+    # Reorder to put Subnet near the front for better visibility
+    cols = ['correlation_id', 'subnet', 'ip_address', 'hostname', 'host_status', 
+            'port', 'protocol', 'port_state', 'service_name', 'version']
+    
+    return manifest_df[cols]
+
+def process_nmap_gnmap(gnmap_path):
+    """
+    Coordinator that parses GNMAP results.
+    Flattens host and port information into a security-focused DataFrame.
+    """
+    session_correlation_id = str(uuid.uuid4())
+    config = {"correlation_id": session_correlation_id}
+
+    # In GNMAP, we don't have a 'data_root' like XML, 
+    # so we call our merged collector directly.
+    df = collect_merged_nmap_report_gnmap(gnmap_path, config)
+    
+    return df
+
+def collect_nmap_hosts_gnmap(gnmap_path, config=None):
+    """
+    Parses Nmap GNMAP to return a DataFrame of hosts.
+    One row per unique IP address.
+    """
+    correlation_id = (config or {}).get('correlation_id', str(uuid.uuid4()))
+    host_data = []
+
+    try:
+        with open(gnmap_path, 'r') as f:
+            for line in f:
+                # Ignore comments and headers
+                if line.startswith('#') or "Status:" in line:
+                    continue
+                
+                # Regex to extract IP and Hostname
+                # Format: Host: 1.1.1.1 (host.name)	Status: Up
+                match = re.search(r"Host: ([0-9.]+)\s\((.*?)\)", line)
+                if match:
+                    ip = match.group(1)
+                    hostname = match.group(2) if match.group(2) else "<unknown>"
+                    
+                    # In GNMAP, "Status: Up" lines are separate or implied
+                    # For Grepable format, if the host line exists, it's generally Up
+                    host_data.append({
+                        "correlation_id": correlation_id,
+                        "ip_address": ip,
+                        "hostname": hostname,
+                        "host_status": "up",
+                        "type": "HOST_STATUS"
+                    })
+
+        return pd.DataFrame(host_data).drop_duplicates(subset=['ip_address'])
+
+    except Exception as e:
+        logging.error(json.dumps({"event": "HOST_STATUS_PARSE_GNMAP_ERROR", "error": str(e)}))
+        return pd.DataFrame()
+
+def collect_nmap_ports_gnmap(gnmap_path, config=None):
+    """
+    Parses Nmap GNMAP to return a DataFrame focusing on port and service status.
+    One row per port found on each host.
+    """
+    correlation_id = (config or {}).get('correlation_id', str(uuid.uuid4()))
+    port_rows = []
+
+    try:
+        with open(gnmap_path, 'r') as f:
+            for line in f:
+                if "Ports:" not in line:
+                    continue
+
+                # Extract IP
+                ip_match = re.search(r"Host: ([0-9.]+)", line)
+                ip = ip_match.group(1) if ip_match else "<unknown>"
+
+                # Extract everything after Ports:
+                ports_part = line.split("Ports: ")[1].strip()
+                # Ports are comma separated: 80/open/tcp//http//, 443/open/tcp//https//
+                port_entries = ports_part.split(", ")
+
+                for entry in port_entries:
+                    parts = entry.split("/")
+                    if len(parts) >= 4:
+                        port_id = parts[0].strip()
+                        port_state = parts[1].strip()
+                        protocol = parts[2].strip()
+                        service_name = parts[4].strip() if parts[4] else "unknown"
+                        product = parts[5].strip() if len(parts) > 5 else ""
+
+                        fake_guid = f"{ip}:{port_id}"
+
+                        port_rows.append({
+                            "correlation_id": correlation_id,
+                            "port_guid": fake_guid,
+                            "ip_address": ip,
+                            "port": port_id,
+                            "protocol": protocol,
+                            "port_state": port_state,
+                            "service_name": service_name,
+                            "version": product,
+                            "type": "PORT_DETAIL"
+                        })
+
+        return pd.DataFrame(port_rows)
+
+    except Exception as e:
+        logging.error(json.dumps({"event": "PORT_DETAIL_PARSE_GNMAP_ERROR", "error": str(e)}))
+        return pd.DataFrame()
+
+def collect_merged_nmap_report_gnmap(gnmap_path, config=None):
+    """
+    Merges host status and port details from GNMAP into a single flattened DataFrame.
+    """
+    correlation_id = (config or {}).get('correlation_id', str(uuid.uuid4()))
+    
+    df_hosts = collect_nmap_hosts_gnmap(gnmap_path, config)
+    df_ports = collect_nmap_ports_gnmap(gnmap_path, config)
+
+    if df_hosts.empty:
+        logging.warning(json.dumps({
+            "event": "MERGE_FAILED",
+            "correlation_id": correlation_id,
+            "message": "No host data found in GNMAP"
+        }))
+        return pd.DataFrame()
+
+    merged_df = pd.merge(
+        df_ports, 
+        df_hosts[['ip_address', 'hostname', 'host_status']], 
+        on='ip_address', 
+        how='left'
+    )
+
+    column_order = [
+        'correlation_id', 'ip_address', 'hostname', 'host_status', 
+        'port', 'protocol', 'port_state', 'service_name', 'version'
+    ]
+    
+    existing_cols = [c for c in column_order if c in merged_df.columns]
+    merged_df = merged_df[existing_cols]
+
+    logging.info(json.dumps({
+        "event": "NMAP_GNMAP_MERGE_COMPLETE",
+        "correlation_id": correlation_id,
+        "total_records": len(merged_df),
+        "unique_hosts": merged_df['ip_address'].nunique() if not merged_df.empty else 0
+    }))
+
+    return merged_df    
+
+def collect_nmap_subnets_gnmap(gnmap_path, subnet_mask='/24', config=None):
+    """
+    Identifies all unique networks found in the scan results.
+    Useful for grouping findings by network segment.
+    """
+    correlation_id = (config or {}).get('correlation_id', str(uuid.uuid4()))
+    networks = set()
+
+    try:
+        with open(gnmap_path, 'r') as f:
+            for line in f:
+                match = re.search(r"Host: ([0-9.]+)", line)
+                if match:
+                    ip_str = match.group(1)
+                    # Create a network object based on the IP and desired mask
+                    # strict=False allows calculating the network address from a host IP
+                    interface = ipaddress.IPv4Interface(f"{ip_str}{subnet_mask}")
+                    networks.add(str(interface.network))
+
+        subnet_data = [{
+            "correlation_id": correlation_id,
+            "subnet": net,
+            "type": "SUBNET_IDENTIFIED"
+        } for net in networks]
+
+        return pd.DataFrame(subnet_data)
+
+    except Exception as e:
+        logging.error(json.dumps({"event": "SUBNET_PARSE_ERROR", "error": str(e)}))
+        return pd.DataFrame()
+
+def collect_nmap_subnet_members_gnmap(gnmap_path, subnet_mask='/24', config=None):
+    """
+    Returns a mapping of Subnets to Hosts.
+    One row per Host, including its parent Subnet.
+    """
+    correlation_id = (config or {}).get('correlation_id', str(uuid.uuid4()))
+    mapping_rows = []
+
+    try:
+        # We reuse the host collector to get validated IP data
+        df_hosts = collect_nmap_hosts_gnmap(gnmap_path, config)
+        
+        if df_hosts.empty:
+            return pd.DataFrame()
+
+        for _, row in df_hosts.iterrows():
+            ip_str = row['ip_address']
+            try:
+                # Calculate the network address for the host
+                interface = ipaddress.IPv4Interface(f"{ip_str}{subnet_mask}")
+                parent_network = str(interface.network)
+                
+                mapping_rows.append({
+                    "correlation_id": correlation_id,
+                    "subnet": parent_network,
+                    "ip_address": ip_str,
+                    "hostname": row['hostname'],
+                    "host_status": row['host_status'],
+                    "type": "SUBNET_HOST_MAP"
+                })
+            except ValueError:
+                continue # Skip invalid IPs
+
+        return pd.DataFrame(mapping_rows)
+
+    except Exception as e:
+        logging.error(json.dumps({"event": "SUBNET_HOST_MAP_ERROR", "error": str(e)}))
+        return pd.DataFrame()
+
+def collect_complete_nmap_manifest_gnmap(gnmap_path, subnet_mask='/24', config=None):
+    """
+    The ultimate merge for GNMAP: Subnet -> Host -> Port.
+    Standardizes grepable output into a hierarchical security manifest.
+    """
+    correlation_id = (config or {}).get('correlation_id', str(uuid.uuid4()))
+    config = {"correlation_id": correlation_id}
+
+    # 1. Collect Port/Service data using the GNMAP-specific collector
+    df_main = collect_merged_nmap_report_gnmap(gnmap_path, config)
+    
+    # 2. Collect Subnet Mapping using the GNMAP-specific collector
+    df_subnets = collect_nmap_subnet_members_gnmap(gnmap_path, subnet_mask, config)
+
+    if df_main.empty:
+        logging.warning(json.dumps({
+            "event": "MANIFEST_GEN_EMPTY", 
+            "path": gnmap_path, 
+            "correlation_id": correlation_id
+        }))
+        return df_main
+
+    # 3. Final Merge
+    # We bring in the 'subnet' column based on ip_address
+    manifest_df = pd.merge(
+        df_main,
+        df_subnets[['ip_address', 'subnet']],
+        on='ip_address',
+        how='left'
+    )
+
+    # 4. Cleanup: Standardize column order for consistency with XML output
+    column_order = [
+        'correlation_id', 'subnet', 'ip_address', 'hostname', 'host_status', 
+        'port', 'protocol', 'port_state', 'service_name', 'version'
+    ]
+    
+    # Ensure all columns exist (important if the GNMAP was partially malformed)
+    existing_cols = [c for c in column_order if c in manifest_df.columns]
+    manifest_df = manifest_df[existing_cols]
+
+    logging.info(json.dumps({
+        "event": "GNMAP_MANIFEST_COMPLETE",
+        "correlation_id": correlation_id,
+        "rows": len(manifest_df)
+    }))
+
+    return manifest_df
+
+def auto_collect(file_path, subnet_mask='/24'):
+    if file_path.endswith('.xml'):
+        return collect_complete_nmap_manifest_xml(file_path, subnet_mask)
+    elif file_path.endswith('.gnmap'):
+        return collect_complete_nmap_manifest_gnmap(file_path, subnet_mask)
+    else:
+        raise ValueError("Unsupported file format")

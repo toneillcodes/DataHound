@@ -9,7 +9,7 @@ import os
 def get_pe_metadata(config):
     """
     Extracts basic file info, hashes, and version metadata.
-    Returns a flat dictionary ready for a DataFrame.
+    Returns a DataFrame.
     """
     # validation, this should have been done already, but we won't get far without the source_path
     source_path = config.get('source_path')
@@ -107,6 +107,8 @@ def get_sections_dataframe(config):
         df_sections = pd.DataFrame(rows)
 
         # example using an 'inner' join on correlation_id
+        # this is no longer necessary since the pe_metadata results can correlate
+        # keeping in case there is a need or use for the correlation_id again
         '''
         if df_metadata is not None and not df_metadata.empty:
             merged_df = pd.merge(df_sections, df_metadata, on="correlation_id", how="inner")
@@ -125,6 +127,7 @@ def get_directory_section_info(file_path, directory_key):
     """
     Generic helper to find the section name and VA for a PE directory entry.
     directory_key: e.g., 'IMAGE_DIRECTORY_ENTRY_EXPORT' or 'IMAGE_DIRECTORY_ENTRY_IAT'
+    Returns: Tuple with (section name, RVA)
     """
     if not file_path or not os.path.exists(file_path):
         return None    
@@ -191,7 +194,7 @@ def find_eat_section(file_path):
     except Exception as e:
         logging.error(f"Error: {e}")
         return None
-
+    
 def find_iat_section(file_path):
     # validation, this should have been done already
     if not os.path.exists(file_path):
@@ -202,31 +205,27 @@ def find_iat_section(file_path):
         
         # Get the IAT Data Directory (Index 12)
         # IMAGE_DIRECTORY_ENTRY_IAT = 12
-        iat_dir = pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IAT']]
-        
-        iat_va = iat_dir.VirtualAddress
-        # does this matter? i don't think so
-        iat_size = iat_dir.Size
+        iat_entry = pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IAT']]
+        iat_vaddr = iat_entry.VirtualAddress
+        if iat_vaddr != 0:
+            iat_section = pe.get_section_by_rva(iat_vaddr)
+        else:
+            if hasattr(pe, 'DIRECTORY_ENTRY_IMPORT'):
+                for entry in pe.DIRECTORY_ENTRY_IMPORT:
+                    # This is the Virtual Address of the IAT for this specific DLL
+                    iat_start_va = entry.struct.FirstThunk
+                    iat_vaddr = iat_start_va
+                    iat_section = pe.get_section_by_rva(iat_vaddr)
 
-        if iat_va == 0:
+        if iat_vaddr == 0:
             logging.debug("No IAT directory found (common in some DLLs or packed files).")
             return None
 
-        # todo: debug output        
-        #print(f"IAT Virtual Address: {hex(iat_va)}")
+        # todo: control for debug output        
+        #print(f"iat_vaddr: {iat_vaddr}")
+        #print(f"IAT Virtual Address: {hex(iat_vaddr)}")
         #print(f"IAT Size: {hex(iat_size)}\n")
-
-        # iterate through pe.sections to find where the the IAT lives based on the VA
-        for section in pe.sections:
-            section_name = section.Name.decode('utf-8').strip('\x00')
-            section_start = section.VirtualAddress
-            section_end = section.VirtualAddress + section.Misc_VirtualSize
-            
-            # check if the IAT starts within this section
-            if section_start <= iat_va < section_end:
-                return section_name, iat_va
-
-        return None
+        return iat_section.Name.decode().strip('\x00'), iat_vaddr
 
     except Exception as e:
         logging.error(f"Error: {e}")
@@ -257,6 +256,13 @@ def get_iat_dataframe(config):
 
         if hasattr(pe, 'DIRECTORY_ENTRY_IMPORT'):
             for entry in pe.DIRECTORY_ENTRY_IMPORT:
+                iat_start_va = entry.struct.FirstThunk  
+                iat_section = pe.get_section_by_rva(iat_start_va)
+                is_unmapped = (iat_vaddr > 0 and iat_section is None)
+                parent_section = iat_section.Name.decode('utf-8', errors='ignore').strip('\x00') if iat_section else "UNMAPPED"
+
+                #print(f"parent_section: {parent_section}")
+
                 # Use errors='ignore' to prevent crashes on obfuscated names
                 dll_name = entry.dll.decode('utf-8', errors='ignore')
                 
@@ -273,10 +279,12 @@ def get_iat_dataframe(config):
                         "DLL": dll_name,
                         "Function": func_name,
                         "IAT_Address": hex(imp.address),
+                        "Parent_Section": parent_section,
                         "TimeDateStamp": entry.struct.TimeDateStamp
                     })
 
         df_iat = pd.DataFrame(rows)
+        print(f"df_iat: {df_iat}")
 
         # Use an 'inner' join on correlation_id to broadcast metadata to all sections
         '''
@@ -313,16 +321,60 @@ def get_iat_with_malapi_dataframe(config):
         logging.error(f"Failed to collect PE metadata while compiling IAT DF. Stopping IAT collection.")
         return False
 
-    # todo: consider a better appproach for MalAPI mapping 
+    # todo: consider a better appproach for API abuse mapping 
     #       (move to an external JSON/Dict? should not be baked into code)
+    #       the following block was generated by Gemini AI as a PoC
+    #       change entirely to use flare-capa? i think this would be best
     MALAPI_MAP = {
-        "VirtualAlloc": {"category": "Injection", "risk": "High"},
+        # --- PROCESS INJECTION & MANIPULATION ---
+        "VirtualAllocEx": {"category": "Injection", "risk": "High"},
         "WriteProcessMemory": {"category": "Injection", "risk": "High"},
         "CreateRemoteThread": {"category": "Injection", "risk": "High"},
+        "NtCreateThreadEx": {"category": "Injection", "risk": "Critical"},
+        "QueueUserAPC": {"category": "Injection", "risk": "High"},
+        "SetThreadContext": {"category": "Injection", "risk": "High"},
+        "OpenProcess": {"category": "Injection", "risk": "Medium"},
+        
+        # --- EVASION & ANTI-ANALYSIS ---
         "IsDebuggerPresent": {"category": "Anti-Debugging", "risk": "Medium"},
         "CheckRemoteDebuggerPresent": {"category": "Anti-Debugging", "risk": "Medium"},
-        "SetWindowsHookEx": {"category": "Spyware", "risk": "High"},
-        "URLDownloadToFile": {"category": "Downloader", "risk": "High"}
+        "Sleep": {"category": "Evasion", "risk": "Low"}, # Often used for "Delay Execution"
+        "NtDelayExecution": {"category": "Evasion", "risk": "Medium"},
+        "OutputDebugStringA": {"category": "Anti-Debugging", "risk": "Low"},
+        "FindWindowA": {"category": "Evasion", "risk": "Medium"}, # Used to find debugger windows
+        
+        # --- SPYWARE & SURVEILLANCE ---
+        "SetWindowsHookExA": {"category": "Spying", "risk": "High"},
+        "GetAsyncKeyState": {"category": "Spying", "risk": "High"},
+        "GetForegroundWindow": {"category": "Spying", "risk": "Medium"},
+        "GetClipboardData": {"category": "Spying", "risk": "High"},
+        "MapVirtualKeyA": {"category": "Spying", "risk": "Medium"},
+        
+        # --- NETWORKING & C2 ---
+        "URLDownloadToFileW": {"category": "Downloader", "risk": "High"},
+        "InternetOpenA": {"category": "Internet", "risk": "Medium"},
+        "InternetConnectA": {"category": "Internet", "risk": "Medium"},
+        "HttpOpenRequestA": {"category": "Internet", "risk": "Medium"},
+        "HttpSendRequestA": {"category": "Internet", "risk": "High"},
+        "WSAStartup": {"category": "Internet", "risk": "Low"},
+        
+        # --- ENUMERATION & RECON ---
+        "CreateToolhelp32Snapshot": {"category": "Enumeration", "risk": "Medium"},
+        "Process32First": {"category": "Enumeration", "risk": "Medium"},
+        "EnumProcesses": {"category": "Enumeration", "risk": "Medium"},
+        "GetLogicalDriveStringsW": {"category": "Enumeration", "risk": "Low"},
+        "IsProcessorFeaturePresent": {"category": "Helper", "risk": "Low"},
+        
+        # --- PERSISTENCE & SYSTEM ---
+        "RegCreateKeyExA": {"category": "Persistence", "risk": "Medium"},
+        "RegSetValueExA": {"category": "Persistence", "risk": "High"},
+        "CreateServiceA": {"category": "Persistence", "risk": "High"},
+        "SetFileAttributesA": {"category": "Evasion", "risk": "Medium"}, # Hiding files
+        
+        # --- CRYPTOGRAPHY (Ransomware/Exfiltration) ---
+        "CryptEncrypt": {"category": "Ransomware", "risk": "High"},
+        "CryptDecrypt": {"category": "Ransomware", "risk": "High"},
+        "CryptGenKey": {"category": "Ransomware", "risk": "Medium"},
     }
 
     try:
@@ -331,10 +383,22 @@ def get_iat_with_malapi_dataframe(config):
         # logic for IAT Section anomalies
         iat_entry = pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IAT']]
         iat_vaddr = iat_entry.VirtualAddress
-        iat_section = pe.get_section_by_rva(iat_vaddr)
+        if iat_vaddr != 0:
+            iat_section = pe.get_section_by_rva(iat_vaddr)
+        else:
+            if hasattr(pe, 'DIRECTORY_ENTRY_IMPORT'):
+                for entry in pe.DIRECTORY_ENTRY_IMPORT:
+                    # This is the Virtual Address of the IAT for this specific DLL
+                    iat_start_va = entry.struct.FirstThunk
+                    iat_vaddr = iat_start_va
+                    iat_section = pe.get_section_by_rva(iat_vaddr)
+
+        #print(f"iat_vaddr: {iat_vaddr}")
         
         is_unmapped = (iat_vaddr > 0 and iat_section is None)
         parent_section = iat_section.Name.decode('utf-8', errors='ignore').strip('\x00') if iat_section else "UNMAPPED"
+
+        #print(f"parent_section: {parent_section}")
 
         rows = []
         if hasattr(pe, 'DIRECTORY_ENTRY_IMPORT'):
@@ -353,7 +417,7 @@ def get_iat_with_malapi_dataframe(config):
                         "Function": func_name,
                         "IAT_ID": f"IAT-{filehash}",
                         "IAT_Address": hex(imp.address),
-                        "IAT_Parent_Section": parent_section,
+                        "IAT_Parent_Section": parent_section,       # change this to a static value to indicate when the IAT is outside of a section
                         "Is_Anomalous_Location": is_unmapped,
                         "MalAPI_Category": mal_info['category'],
                         "MalAPI_Risk": mal_info['risk']

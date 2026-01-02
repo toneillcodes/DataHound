@@ -118,11 +118,17 @@ $
 
 #### Arguments
 | Parameter | Argument Values | Description |
-|----|----|----|----|
+|----|----|----|
 | --operation | collect | The primary function to execute. |
 | --config | filename | Collection definitions and transformation definitions. |
 | --source-kind | source_kind | The source_kind to use in the generated graph. |
 | --output | filename | Output file path for the resulting graph JSON. (Default: output_graph.json) |
+
+## Examples
+Explore  practical examples to see DataHound collect operations in action.
+### Collect Examples
+- [BloodHound Collector](examples/collection/bloodhound/README.md)
+- [LDAP Collector](examples/collection/ldap/README.md)
 
 ### ```connect```: **Graph Correlation and Linking**
 The connect operation takes two JSON files (```--graphA``` and ```--graphB```) and creates new edges between nodes that share a common, correlatable property.
@@ -154,7 +160,7 @@ $
 ```
 #### Arguments
 | Parameter | Argument Values | Description |
-|----|----|----|----|
+|----|----|----|
 | --operation | connect | The primary function to execute. |
 | --graphA | filename | File name for Graph A to connect to Graph B. |
 | --rootA | NA | The data element that contains the node data to process. |
@@ -168,10 +174,7 @@ $
 | --output | filename | Output file path for the resulting graph JSON. (Default: output_graph.json) |
 
 ## Examples
-Explore  practical examples to see DataHound in action:
-### Collect Examples
-- [BloodHound Collector](examples/collection/bloodhound/README.md)
-- [LDAP Collector](examples/collection/ldap/README.md)
+Explore  practical examples to see DataHound in action.
 ### Connect Examples
 - Connecting Two Sample OG Graphs with a Static Edge
 - Connecting a Sample OG Graphs with the Sample AD Data Set

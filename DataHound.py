@@ -612,20 +612,28 @@ def process_pe_iat_source(config):
         logging.error(f"'source_path' is required. Skipping item: {item_name}.")
         return False
 
-    #iat_info = find_iat_section(source_path) # this method is deprecated
-    iat_info = get_directory_section_info(source_path, 'IMAGE_DIRECTORY_ENTRY_IAT')
-
-    if iat_info:
-        iat_location, iat_va = iat_info
-    else:
-        logging.error("Could not find IAT.")
-        return False
-
     df_iat = None
     rows = []
 
     df_meta = get_pe_metadata(config)
     filehash = df_meta['sha256'].iloc[0]
+
+    iat_info = find_iat_section(source_path)    # returns False, iat_va if the data falls outside of a mapped section
+    #iat_info = get_directory_section_info(source_path, 'IMAGE_DIRECTORY_ENTRY_IAT')
+
+    #print(f"iat_info: {iat_info}")
+
+    # initialize a value and then determine if it should be a section GUID or the PE GUID
+    iat_location_value = None
+    if iat_info is None:
+        logging.error("Could not find IAT.")
+        return None
+    elif iat_info:
+        iat_location, iat_va = iat_info
+        if iat_location is False:
+            iat_location_value = f"{filehash}"
+        else:
+            iat_location_value = iat_location
 
     # build a dataframe with the information that we need, creating a somewhat static node setting a id and name
     # todo: this needs to be updated to use a GUID for the 'id' field - maybe by appending the PE ID (sha256 hash or another hash?) 
@@ -633,7 +641,7 @@ def process_pe_iat_source(config):
     rows.append({
         "id": f"IAT-{filehash}",
         "name": "IAT",
-        "location": iat_location,
+        "location": f"{iat_location_value}-{filehash}",
         "location_va": hex(iat_va)
     })
 
@@ -659,13 +667,14 @@ def process_pe_iat_entries_source(config):
 
     # collect encirched IAT data
     #df_iat = get_iat_dataframe(config)
+    # todo: consider changing this to use flare-capa
     df_iat = get_iat_with_malapi_dataframe(config)
     if df_iat is None:
         logging.warning(f"Skipping {item_name}: IAT collection failed.")
         return False
 
-    #iat_info = find_iat_section(source_path)
-    iat_info = get_directory_section_info(source_path, 'IMAGE_DIRECTORY_ENTRY_IAT')
+    iat_info = find_iat_section(source_path)
+    #iat_info = get_directory_section_info(source_path, 'IMAGE_DIRECTORY_ENTRY_IAT')
     if iat_info:
         iat_location, iat_va = iat_info
         df_iat['iat_location'] = iat_location

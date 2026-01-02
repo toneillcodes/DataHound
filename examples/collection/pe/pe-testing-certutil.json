@@ -1,0 +1,174 @@
+[ 
+    {
+        "item_type": "node",
+        "item_name": "File",
+        "item_description": "Windows Portable Exectuable",
+        "source_type": "pe",
+        "source_path": "C:\\Windows\\System32\\certutil.exe",
+		"id_location": "sha256",        
+		"column_mapping": {  
+            "filename": "name",
+			"sha256": "sha256",
+			"magic_hex": "MagicHex",
+			"magic_ascii": "MagicASCII",	
+			"version_OriginalFilename": "OriginalFilename",
+			"version_ProductName": "ProductName",
+			"version_ProductVersion": "ProductVersion",
+			"imphash": "IATHash"
+        },		
+		"output_columns": [            
+            "id",
+			"name",
+			"md5",
+			"sha1",
+			"sha256",
+			"MagicHex",
+			"MagicASCII",
+			"OriginalFilename",
+			"ProductName",
+			"ProductVersion",
+            "size_bytes",
+            "IATHash",
+            "machine",
+            "compile_time",
+            "entry_point",
+            "subsystem"
+        ],		
+        "item_kind": "PEExectuable",
+		"source_name": "file_system"
+    },	
+    {
+        "item_type": "node",
+        "item_name": "Sections",
+        "item_description": "Sections from the PE",
+        "source_type": "pe_sections",
+        "source_path": "C:\\Windows\\System32\\certutil.exe",
+		"id_location": "section-guid",        
+		"column_mapping": {  
+            "Section_Name": "name"
+        },		
+		"output_columns": [            
+            "id",
+			"name",
+			"Virtual_Address",
+			"Virtual_Size",
+			"Raw_Size",
+			"Entropy",
+			"Characteristics"
+        ],		
+        "item_kind": "PESectionEntry",
+		"source_name": "file_system"
+    },	
+    {
+        "item_type": "node",
+        "item_name": "IAT",
+        "item_description": "IAT anchor node",
+        "source_type": "pe_iat",
+        "source_path": "C:\\Windows\\System32\\certutil.exe",
+		"id_location": "id",	
+		"output_columns": [            
+            "id",
+			"name",
+			"location",
+			"location_va"
+        ],
+        "item_kind": "PEIAT",
+		"source_name": "file_system"
+    },
+	{
+        "item_type": "edge",
+        "item_name": "PESectionEntry -> PEIAT edge",
+        "item_description": "PESectionEntry -[ContainsElement]-> PEIAT",       
+		"edge_type": "static",		
+        "edge_name": "ContainsElement",
+        "source_type": "pe_iat",
+        "source_path": "C:\\Windows\\System32\\certutil.exe",		
+        "source_column": "location",
+        "target_column": "id",
+        "source_node_type": "PESectionEntry",
+        "target_node_type": "PEIAT",
+        "source_name": "file_system"
+    },
+    {
+        "item_type": "node",
+        "item_name": "IAT Entries",
+        "item_description": "DLLs entries from the IAT",
+        "source_type": "pe_iat_entries",
+        "source_path": "C:\\Windows\\System32\\certutil.exe",
+		"id_location": "IAT_Address",        
+		"column_mapping": {  
+            "Function": "name"
+        },		
+		"output_columns": [            
+            "id",
+			"name",
+			"DLL",
+			"Is_Anomalous_Location",
+			"MalAPI_Category",
+			"MalAPI_Risk"
+        ],		
+        "item_kind": "PEIATEntry",
+		"source_name": "file_system"
+    },
+	{
+        "item_type": "edge",		
+        "item_name": "PEIAT -> PEIATEntry edge",
+        "item_description": "PEIAT -[:Imports]-> PEExectuable",
+		"edge_type": "static",		
+        "edge_name": "Imports",
+        "source_type": "pe_iat_entries",
+        "source_path": "C:\\Windows\\System32\\certutil.exe",
+        "start_id": "IAT_ID",		
+		"end_id": "IAT_Address",		
+		"source_column": "IAT_ID",
+		"target_column": "IAT_Address",
+        "source_node_type": "PEIAT",
+        "target_node_type": "PEIATEntry",
+        "source_name": "pe-testing-defs"
+    },	
+	{
+        "item_type": "edge",
+        "item_name": "PEExectuable -> PESectionEntry edge",
+        "item_description": "PEExectuable -[:HasSection]-> PESectionEntry",       
+		"edge_type": "static",		
+        "edge_name": "HasSection",
+        "source_type": "pe_sections",
+        "source_path": "C:\\Windows\\System32\\certutil.exe",		
+        "source_column": "sha256",
+        "target_column": "section-guid",
+        "source_node_type": "PEExectuable",
+        "target_node_type": "PESectionEntry",
+        "source_name": "file_system"
+    },
+    {
+        "item_type": "node",
+        "item_name": "Imported DLLs",
+        "item_description": "DLLs imported from the IAT",
+        "source_type": "pe_iat_imports",
+        "source_path": "C:\\Windows\\System32\\certutil.exe",
+		"id_location": "DLL",        
+		"column_mapping": {
+            "DLL": "name"
+        },		
+		"output_columns": [            
+            "id",
+			"name"
+        ],		
+        "item_kind": "PEImportedDLL",
+		"source_name": "file_system"
+    },
+	{
+        "item_type": "edge",
+        "item_name": "PEIATEntry -> PEImportedDLL edge",
+        "item_description": "PEIATEntry -[:ResolvesTo]-> PEImportedDLL",       
+		"edge_type": "static",		
+        "edge_name": "ResolvesTo",
+        "source_type": "pe_iat_entries",
+        "source_path": "C:\\Windows\\System32\\certutil.exe",		
+        "source_column": "IAT_Address",
+        "target_column": "DLL",
+        "source_node_type": "PEIATEntry",
+        "target_node_type": "PEImportedDLL",
+        "source_name": "file_system"
+    }	
+]
