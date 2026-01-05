@@ -5,10 +5,18 @@ The **Nmap Collector** is a high-performance network reconnaissance parser desig
 
 By converting flat scan files into an entity-relationship model, security analysts can move beyond text-searching IP addresses and start visualizing the attack surface. This allows for graph-based queries that surface lateral movement vectors and identify high-value service clusters across segmented networks.
 
-<p align="center">
-  <img width="600" src="assets/nmap-graph-example.png"><br/>
-  Visualizing service distribution and subnet membership across an enterprise scan.
-</p>
+<table border="0">
+  <tr>
+    <td>
+      <img src="assets/nmap-example-organic.png" width="100%" />
+      <p align="center"><b>Organic Layout</b><br/>Visualizing service distribution</p>
+    </td>
+    <td>
+      <img src="assets/nmap-example-stacked.png" width="100%" />
+      <p align="center"><b>Stacked Layout</b><br/>Visualizing subnet membership</p>
+    </td>
+  </tr>
+</table>
 
 ## Features
 * **Format Agnostic**: Seamlessly handles Nmap XML (`-oX`) and Grepable Nmap (`-oG`) outputs.
@@ -112,7 +120,6 @@ Running a collect operation for an internal network scan:
 Once loaded into BloodHound, you can run queries that simplify analysis by highlighting relationships.
 
 * **Query 1: Find Hosts with RDP and SMB Open**
-
 ```cypher
 MATCH (h:NmapHost)-[:HasPort]->(p:NmapPort)
 WHERE p.port IN ['3389', '445']
@@ -121,17 +128,16 @@ WHERE port_count = 2
 RETURN h
 ```
 
-Query 2: Map Vulnerable Service Versions
+* **Query 2: Map Vulnerable Service Versions**
 ```cypher
 MATCH (h:NmapHost)-[:HasPort]->(p:NmapPort)-[:RunsService]->(s:NmapService)
 WHERE s.version CONTAINS 'OpenSSH 7.2'
 RETURN h, p, s
 ```
 
-Query 3: Segment Breakdown
+* **Query 3: Querying "Blast Radius"**
 ```cypher
-MATCH (n:Subnet)-[:ContainsHost]-(h:NmapHost)
-WHERE h.host_status = 'up'
-RETURN n.id, count(h) as host_count
-ORDER BY host_count DESC
+// Find all hosts in a specific subnet
+MATCH (s:Subnet {id: '10.0.0.0/24'})-[:Contains]->(hosts) 
+RETURN hosts
 ```
