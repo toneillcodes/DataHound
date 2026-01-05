@@ -1,4 +1,4 @@
-# BloodHound Collector
+# DataHound: BloodHound Collector
 ## Artifacts
 - [bloodhound-model.json](bloodhound-model.json): the custom icon schema for BloodHound nodes
 - [bloodhound-collection-definitions.json](bloodhound-collection-definitions.json): collection definitions for BHE and BHCE

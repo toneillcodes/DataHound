@@ -39,8 +39,16 @@ from collector_modules.dpapi_collector import collect_masterkey_data
 from collector_modules.host_collector import collect_windows_host_enumeration   # development
 from collector_modules.host_collector import collect_linux_host_enumeration     # untested
 # nmap collector methods
+# xml nmap output
 from collector_modules.nmap_collector import collect_nmap_hosts_xml
 from collector_modules.nmap_collector import collect_nmap_ports_xml
+from collector_modules.nmap_collector import collect_nmap_subnets_xml
+from collector_modules.nmap_collector import collect_nmap_subnet_members_xml
+# gnmap nmap output
+from collector_modules.nmap_collector import collect_nmap_hosts_gnmap
+from collector_modules.nmap_collector import collect_nmap_ports_gnmap
+from collector_modules.nmap_collector import collect_nmap_subnets_gnmap
+from collector_modules.nmap_collector import collect_nmap_subnet_members_gnmap
 
 # configure logging
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
@@ -708,6 +716,31 @@ def process_pe_dll_imports(config):
         return distinct_dll_nodes
     else:
         return None
+
+def process_pe_dll_exports(config):
+    """
+    Retrieves distinct DLL export references from a Windows PE file
+    
+    :param config: data collection and transformation definition in JSON format
+    """
+    df_export_dlls = None
+    # call EAT function
+    df_export_dlls = get_exports_dataframe(config)
+    if df_export_dlls is None or df_export_dlls.empty:
+        # IAT retrieval failed
+        return None
+
+    #print(f"df_export_dlls: {df_export_dlls}")
+    #print(f"address: {df_export_dlls['Address'].iloc[0]}")
+
+    distinct_dll_nodes = None
+    # copy only DLL column and filter only distinct entries
+    dll_nodes = df_export_dlls[['DLL']].copy()
+    distinct_dll_nodes = dll_nodes.drop_duplicates(subset=['DLL'])
+    if distinct_dll_nodes is not None:
+        return distinct_dll_nodes
+    else:
+        return None    
     
 # todo: consider consolidating IAT and EAT methods
 def process_pe_eat_source(config):
@@ -718,8 +751,8 @@ def process_pe_eat_source(config):
         logging.error(f"'source_path' is required. Skipping item: {item_name}.")
         return False
 
-    #eat_info = find_eat_section(source_path)
-    eat_info = get_directory_section_info(source_path, 'IMAGE_DIRECTORY_ENTRY_EXPORT')
+    eat_info = find_eat_section(source_path)
+    #eat_info = get_directory_section_info(source_path, 'IMAGE_DIRECTORY_ENTRY_EXPORT')
     if eat_info:
         eat_location, eat_va = eat_info
     else:
@@ -730,7 +763,7 @@ def process_pe_eat_source(config):
     rows = []
 
     df_meta = get_pe_metadata(config)
-    print(f"df_meta: {df_meta}")
+    #print(f"df_meta: {df_meta}")
     filehash = df_meta['sha256'].iloc[0]
 
     # build an array with the information that we need, creating a somewhat static node setting a id and name
@@ -777,7 +810,7 @@ def process_pe_eat_entries_source(config):
 
     # retrieve metadata which contains the file's unique sha256 hash
     df_meta = get_pe_metadata(config)
-    print(f"df_meta: {df_meta}")
+    #print(f"df_meta: {df_meta}")
     filehash = df_meta['sha256'].iloc[0]
     # use the hash to make a fake GUID to help avoid collisions
     df_eat['eat-guid'] = df_eat.apply(
@@ -853,8 +886,7 @@ def _process_dpapi_masterkey(config):
             continue
 
         # Using the function we built previously
-        data = collect_masterkey_data(mk_guid) 
-        print(f"masterkey data: {data}")
+        data = collect_masterkey_data(mk_guid)         
         if data:
             all_results.extend(data)
         else:
@@ -955,6 +987,104 @@ def process_nmap_ports_xml_source(config):
     else:
         return False
 
+def process_nmap_subnets_xml(config):
+    item_name = config.get('item_name', 'NA')
+    source_path  = config.get("source_path")
+    if not source_path:
+        logging.error(f"'source_path' is required. Skipping item: {item_name}.")
+        return False
+        
+    df_nmap = None
+    df_nmap = collect_nmap_subnets_xml(source_path)
+    if df_nmap is not None:
+        #print(f"df_nmap: {df_nmap}")
+        logging.info(f"Successfully processed {item_name}")
+        return df_nmap
+    else:
+        return False
+    
+def process_nmap_subnet_members_xml(config):
+    item_name = config.get('item_name', 'NA')
+    source_path  = config.get("source_path")
+    if not source_path:
+        logging.error(f"'source_path' is required. Skipping item: {item_name}.")
+        return False
+        
+    df_nmap = None
+    df_nmap = collect_nmap_subnet_members_xml(source_path)
+    if df_nmap is not None:
+        #print(f"df_nmap: {df_nmap}")
+        logging.info(f"Successfully processed {item_name}")
+        return df_nmap
+    else:
+        return False
+
+def process_nmap_hosts_gnmap(config):
+    item_name = config.get('item_name', 'NA')
+    source_path  = config.get("source_path")
+    if not source_path:
+        logging.error(f"'source_path' is required. Skipping item: {item_name}.")
+        return False
+        
+    df_nmap = None
+    df_nmap = collect_nmap_hosts_gnmap(source_path)
+    if df_nmap is not None:
+        #print(f"df_nmap: {df_nmap}")
+        logging.info(f"Successfully processed {item_name}")
+        return df_nmap
+    else:
+        return False
+        
+def process_nmap_ports_gnmap(config):
+    item_name = config.get('item_name', 'NA')
+    source_path  = config.get("source_path")
+    if not source_path:
+        logging.error(f"'source_path' is required. Skipping item: {item_name}.")
+        return False
+        
+    df_nmap = None
+    df_nmap = collect_nmap_ports_gnmap(source_path)
+    if df_nmap is not None:
+        #print(f"df_ports_nmap: {df_nmap}")
+        logging.info(f"Successfully processed {item_name}")
+        return df_nmap
+    else:
+        return False
+    
+def process_nmap_subnets_gnmap(config):
+    item_name = config.get('item_name', 'NA')
+    source_path  = config.get("source_path")
+    if not source_path:
+        logging.error(f"'source_path' is required. Skipping item: {item_name}.")
+        return False
+        
+    df_nmap = None
+    df_nmap = collect_nmap_subnets_gnmap(source_path)
+    if df_nmap is not None:
+        # a 1:1 relationship between the scan and the graph node.
+        df_nmap = df_nmap.drop_duplicates(subset=['subnet'])
+        #print(f"df_nmap: {df_nmap}")
+        logging.info(f"Successfully processed {item_name}")
+        return df_nmap
+    else:
+        return False
+    
+def process_nmap_subnet_members_gnmap(config):
+    item_name = config.get('item_name', 'NA')
+    source_path  = config.get("source_path")
+    if not source_path:
+        logging.error(f"'source_path' is required. Skipping item: {item_name}.")
+        return False
+        
+    df_nmap = None
+    df_nmap = collect_nmap_subnet_members_gnmap(source_path)
+    if df_nmap is not None:
+        #print(f"df_nmap: {df_nmap}")
+        logging.info(f"Successfully processed {item_name}")
+        return df_nmap
+    else:
+        return False
+    
 def generate_static_node(config: dict) -> Optional[pd.DataFrame]:
     """
     Creates a single-row DataFrame from static configuration.
@@ -1199,6 +1329,7 @@ def get_data_from_source(config, source_type_override=None):
         "pe_sections": process_pe_sections_source,
         "pe_eat": process_pe_eat_source,
         "pe_eat_entries": process_pe_eat_entries_source,
+        "pe_eat_exports": process_pe_dll_exports,
         "pe_iat": process_pe_iat_source,
         "pe_iat_entries": process_pe_iat_entries_source,
         "pe_iat_imports": process_pe_dll_imports,                           
@@ -1207,6 +1338,12 @@ def get_data_from_source(config, source_type_override=None):
         "windows_host": process_windows_host_source,        # todo: add linux host enumeration     
         "nmap_hosts_xml": process_nmap_hosts_xml_source,
         "nmap_ports_xml": process_nmap_ports_xml_source,
+        "nmap_subnets_xml": process_nmap_subnets_xml,
+        "nmap_subnet_members_xml": process_nmap_subnet_members_xml,
+        "nmap_hosts_gnmap": process_nmap_hosts_gnmap,
+        "nmap_ports_gnmap": process_nmap_ports_gnmap,
+        "nmap_subnets_gnmap": process_nmap_subnets_gnmap,
+        "nmap_subnet_members_gnmap": process_nmap_subnet_members_gnmap,        
         "static": generate_static_node # todo: does this naming make sense anymore?
     }
 

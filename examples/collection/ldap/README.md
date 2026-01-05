@@ -1,4 +1,4 @@
-# LDAP Collector
+# DataHound: LDAP Collector
 ## Artifacts
 - [ldap-model.json](ldap-model.json): the custom icon schema for LDAP nodes
 - [example-ldap-collection-definitions.json](example-ldap-collection-definitions.json): example collection definitions for OpenDJ Users and Groups

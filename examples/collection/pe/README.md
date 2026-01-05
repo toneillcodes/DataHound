@@ -1,4 +1,4 @@
-# Windows Portable Executable Collector
+# DataHound: Windows Portable Executable Collector
 
 ## Overview
 The **Windows PE Collector** is a specialized parsing utility designed to decompose the structure of Windows binaries and reconstruct them as a directed graph. The output is a **BloodHound OpenGraph JSON** file.  
@@ -29,9 +29,12 @@ The collector translates the PE file into the following entity relationship mode
 ### Nodes
 * **PEExecutable**: The root node (identified by SHA256). Contains file metadata, compiler timestamps, and hashes.
 * **PEDLL**: The root node when parsing a DLL resource, (identified by SHA256). Contains file metadata, compiler timestamps, and hashes.
+* **PEDriver**: The root node when parsing a driver resource, (identified by SHA256). Contains file metadata, compiler timestamps, and hashes.
 * **PESectionEntry**: Discrete memory segments (e.g., .text, .data). Includes entropy analysis to detect packed or encrypted code.
 * **PEIAT**: An anchor node representing the Import Address Table as a logical unit.
-* **PEIATEntry**: Individual function calls (e.g., VirtualAllocEx). Enriched with MalAPI risk scores.
+* **PEIATEntry**: Individual function calls (e.g., VirtualAllocEx). Enriched with API risk scores.
+* **PEEAT**: An anchor node representing the Export Address Table as a logical unit.
+* **PEEATEntry**: Individual function calls (e.g., DevAuthExportKey). Enriched with API risk scores.
 * **PEImportedDLL**: The library providing the imported functions (e.g., KERNEL32.DLL).
 
 ### Edges

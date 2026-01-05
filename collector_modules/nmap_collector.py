@@ -141,14 +141,17 @@ def collect_nmap_ports_xml(xml_path, config=None):
                 service_name = service_tag.get('name') if service_tag is not None else "unknown"
                 product = service_tag.get('product') if service_tag is not None else ""
 
-                # combine port with the IP to generate a fake GUID to prevent node collisons
+                # todo: move this post-processing logic to the coordinator function in DataHound.py
+                # combine port with the IP to generate a derived GUID to prevent node collisons
                 # does this really matter? maybe not. it might be interesting to have common port nodes...idk
                 # maintaining a familiar format will make it easy to parse visually
-                fake_guid = f"{ip}:{port_id}"
+                derived_port_guid = f"{ip}:{port_id}"
+                derived_service_guid = f"{ip}:{port_id}:{service_name}"
 
                 port_rows.append({
                     "correlation_id": correlation_id,
-                    "port_guid": fake_guid,
+                    "port_guid": derived_port_guid,
+                    "service_guid": derived_service_guid,
                     "ip_address": ip,
                     "port": port_id,
                     "protocol": protocol,
@@ -210,9 +213,6 @@ def collect_merged_nmap_report(xml_path, config=None):
     }))
 
     return merged_df
-
-import ipaddress
-import xml.etree.ElementTree as ET
 
 def collect_nmap_subnets_xml(xml_path, subnet_mask='/24', config=None):
     """
@@ -417,11 +417,14 @@ def collect_nmap_ports_gnmap(gnmap_path, config=None):
                         service_name = parts[4].strip() if parts[4] else "unknown"
                         product = parts[5].strip() if len(parts) > 5 else ""
 
-                        fake_guid = f"{ip}:{port_id}"
+                        # todo: move this post-processing logic to the coordinator function in DataHound.py
+                        derived_port_guid = f"{ip}:{port_id}"
+                        derived_service_guid = f"{ip}:{port_id}:{service_name}"
 
                         port_rows.append({
                             "correlation_id": correlation_id,
-                            "port_guid": fake_guid,
+                            "port_guid": derived_port_guid,
+                            "service_guid": derived_service_guid,
                             "ip_address": ip,
                             "port": port_id,
                             "protocol": protocol,

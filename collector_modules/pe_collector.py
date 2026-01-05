@@ -1,6 +1,7 @@
 import pandas as pd
 import logging
 import hashlib
+import peutils
 import pefile
 import json
 import uuid
@@ -32,6 +33,18 @@ def get_pe_metadata(config):
             magic_hex = raw_magic.hex().upper()
             magic_ascii = "".join([chr(b) if 32 <= b <= 126 else "." for b in raw_magic])
 
+        # initialize variables to False
+        pe_is_exe = False
+        pe_is_dll = False
+        pe_is_driver = False
+        # check input file type
+        if pe.is_exe():
+            pe_is_exe = True
+        if pe.is_dll():
+            pe_is_dll = True
+        if pe.is_driver():
+            pe_is_driver = True
+
         # composite header
         metadata = {
             "correlation_id": correlation_id,
@@ -44,6 +57,9 @@ def get_pe_metadata(config):
             "magic_ascii": magic_ascii,
             "imphash": pe.get_imphash(), # Fingerprint of the IAT
             "exphash": pe.get_exphash(), # Fingerprint of the EAT
+            "IsEXE": pe_is_exe,
+            "IsDLL": pe_is_dll,
+            "IsDriver": pe_is_driver,
             "machine": pefile.MACHINE_TYPE.get(pe.FILE_HEADER.Machine, "Unknown"),
             "compile_time": pd.to_datetime(pe.FILE_HEADER.TimeDateStamp, unit='s'),
             "entry_point": hex(pe.OPTIONAL_HEADER.AddressOfEntryPoint),
@@ -123,6 +139,7 @@ def get_sections_dataframe(config):
         print(f"Error parsing sections for {file_path}: {e}")
         return None
 
+# this uses the optional_header which is not reliable, swapping out for find_<iat/eat>_section
 def get_directory_section_info(file_path, directory_key):
     """
     Generic helper to find the section name and VA for a PE directory entry.
@@ -205,11 +222,14 @@ def find_iat_section(file_path):
         
         # Get the IAT Data Directory (Index 12)
         # IMAGE_DIRECTORY_ENTRY_IAT = 12
+        # todo: consider changing this - right now we start by checking the optional header
         iat_entry = pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IAT']]
         iat_vaddr = iat_entry.VirtualAddress
+        # we have a result, let's find the section
         if iat_vaddr != 0:
             iat_section = pe.get_section_by_rva(iat_vaddr)
         else:
+            # fallback to processing entry manually
             if hasattr(pe, 'DIRECTORY_ENTRY_IMPORT'):
                 for entry in pe.DIRECTORY_ENTRY_IMPORT:
                     # This is the Virtual Address of the IAT for this specific DLL
@@ -258,7 +278,7 @@ def get_iat_dataframe(config):
             for entry in pe.DIRECTORY_ENTRY_IMPORT:
                 iat_start_va = entry.struct.FirstThunk  
                 iat_section = pe.get_section_by_rva(iat_start_va)
-                is_unmapped = (iat_vaddr > 0 and iat_section is None)
+                is_unmapped = (iat_start_va > 0 and iat_section is None)
                 parent_section = iat_section.Name.decode('utf-8', errors='ignore').strip('\x00') if iat_section else "UNMAPPED"
 
                 #print(f"parent_section: {parent_section}")
@@ -279,6 +299,7 @@ def get_iat_dataframe(config):
                         "DLL": dll_name,
                         "Function": func_name,
                         "IAT_Address": hex(imp.address),
+                        "IsUnmapped": is_unmapped,
                         "Parent_Section": parent_section,
                         "TimeDateStamp": entry.struct.TimeDateStamp
                     })
@@ -314,6 +335,7 @@ def get_iat_with_malapi_dataframe(config):
     # this isn't used currently but might be helpful
     correlation_id = config.get('correlation_id', str(uuid.uuid4()))
     
+    # todo: this should be removed, enrichment happens at the process step
     # retrieve PE metadata
     df_metadata = get_pe_metadata(config)
 
@@ -407,7 +429,7 @@ def get_iat_with_malapi_dataframe(config):
                 for imp in entry.imports:
                     func_name = imp.name.decode('utf-8', errors='ignore') if imp.name else f"ord_{imp.ordinal}"
                     
-                    # Cross-reference with MalAPI
+                    # Cross-reference with Malicious API dict compiled by Gemini
                     mal_info = MALAPI_MAP.get(func_name, {"category": "Standard", "risk": "None"})
                     filehash = df_metadata['sha256'].iloc[0]
 
@@ -433,6 +455,110 @@ def get_iat_with_malapi_dataframe(config):
         return None
 
 def get_exports_dataframe(config):
+    file_path = config.get('source_path')
+    if not file_path:
+        return None
+        
+    correlation_id = config.get('correlation_id', str(uuid.uuid4()))
+
+    try:
+        pe = pefile.PE(file_path)
+        rows = []
+
+        df_metadata = get_pe_metadata(config)
+        if df_metadata is None:
+            return None
+
+        if hasattr(pe, 'DIRECTORY_ENTRY_EXPORT'):
+            # Access the underlying structure field specifically
+            # IMAGE_EXPORT_DIRECTORY.Name is the RVA to the DLL filename
+            name_rva = pe.DIRECTORY_ENTRY_EXPORT.struct.Name
+
+            # debug output
+            #print(f"DIRECTORY_ENTRY_EXPORT[Characteristics]: {pe.DIRECTORY_ENTRY_EXPORT.struct.Characteristics}")
+            #print(f"DIRECTORY_ENTRY_EXPORT[TimeDateStamp]: {pe.DIRECTORY_ENTRY_EXPORT.struct.TimeDateStamp}")
+            #print(f"DIRECTORY_ENTRY_EXPORT[MajorVersion]: {pe.DIRECTORY_ENTRY_EXPORT.struct.MajorVersion}")
+            #print(f"DIRECTORY_ENTRY_EXPORT[MinorVersion]: {pe.DIRECTORY_ENTRY_EXPORT.struct.MinorVersion}")
+            #print(f"DIRECTORY_ENTRY_EXPORT[Name]: {pe.DIRECTORY_ENTRY_EXPORT.struct.Name}")
+            #print(f"DIRECTORY_ENTRY_EXPORT[Base]: {pe.DIRECTORY_ENTRY_EXPORT.struct.Base}")
+            #print(f"DIRECTORY_ENTRY_EXPORT[NumberOfFunctions]: {pe.DIRECTORY_ENTRY_EXPORT.struct.NumberOfFunctions}")
+            #print(f"DIRECTORY_ENTRY_EXPORT[NumberOfNames]: {pe.DIRECTORY_ENTRY_EXPORT.struct.NumberOfNames}")
+            #print(f"DIRECTORY_ENTRY_EXPORT[AddressOfFunctions]:{pe.DIRECTORY_ENTRY_EXPORT.struct.AddressOfFunctions}")
+            #print(f"DIRECTORY_ENTRY_EXPORT[AddressOfNames]:{pe.DIRECTORY_ENTRY_EXPORT.struct.AddressOfNames}")
+            #print(f"DIRECTORY_ENTRY_EXPORT[AddressOfNameOrdinals]:{pe.DIRECTORY_ENTRY_EXPORT.struct.AddressOfNameOrdinals}")
+            #print("-------------------------------------------------------")
+
+            dll_internal_name = None
+            try:
+                # Always fetch the string from the specific RVA in the header
+                dll_internal_name = pe.get_string_at_rva(name_rva).decode('utf-8', errors='ignore')
+            except:
+                # Fallback: if RVA is invalid, use the filename from the path
+                dll_internal_name = os.path.basename(file_path)
+
+            #print(f"Verified internal DLL name: {dll_internal_name}")   
+
+            for exp in pe.DIRECTORY_ENTRY_EXPORT.symbols:
+                # 1. Resolve function name
+                if exp.name:
+                    func_name = exp.name.decode('utf-8', errors='ignore')
+                else:
+                    func_name = f"ordinal_{exp.ordinal}"
+
+                # 2. Handle Forwarder Logic
+                forwarder_str = exp.forwarder.decode('utf-8', errors='ignore') if exp.forwarder else None
+                forwarder_dll = None
+                forwarder_func = None
+                is_forwarded = False
+
+                if forwarder_str:
+                    is_forwarded = True
+                    # Split 'NTDLL.RtlAllocateHeap' into ['NTDLL', 'RtlAllocateHeap']
+                    if '.' in forwarder_str:
+                        parts = forwarder_str.rsplit('.', 1)
+                        forwarder_dll = parts[0]
+                        forwarder_func = parts[1]
+                    else:
+                        forwarder_dll = forwarder_str # Rare edge case
+
+                rows.append({
+                    "correlation_id": correlation_id,
+                    "DLL": dll_internal_name,
+                    "Characteristics": pe.DIRECTORY_ENTRY_EXPORT.struct.Characteristics,
+                    "TimeDateStamp": pe.DIRECTORY_ENTRY_EXPORT.struct.TimeDateStamp,
+                    "MajorVersion": pe.DIRECTORY_ENTRY_EXPORT.struct.MajorVersion,
+                    "MinorVersion": pe.DIRECTORY_ENTRY_EXPORT.struct.MinorVersion,
+                    "Export_Name": func_name,
+                    "Base": pe.DIRECTORY_ENTRY_EXPORT.struct.Base,
+                    "NumberOfFunctions": pe.DIRECTORY_ENTRY_EXPORT.struct.NumberOfFunctions,
+                    "NumberOfNames": pe.DIRECTORY_ENTRY_EXPORT.struct.NumberOfNames,
+                    "AddressOfFunctions": pe.DIRECTORY_ENTRY_EXPORT.struct.AddressOfFunctions,
+                    "AddressOfNames": pe.DIRECTORY_ENTRY_EXPORT.struct.AddressOfNames,
+                    "AddressOfNameOrdinals": pe.DIRECTORY_ENTRY_EXPORT.struct.AddressOfNameOrdinals,
+                    "Ordinal": exp.ordinal,
+                    "Address": hex(pe.OPTIONAL_HEADER.ImageBase + exp.address),
+                    "Internal_RVA": hex(exp.address),
+                    "Is_Forwarded": is_forwarded,
+                    "Forwarder_Target_DLL": forwarder_dll,
+                    "Forwarder_Target_Func": forwarder_func,
+                    "Raw_Forwarder_String": forwarder_str
+                })
+
+            if not rows:
+                return None
+
+            df_eat = pd.DataFrame(rows)
+            print(f"df_eat: {df_eat}")
+            merged_df = pd.merge(df_eat, df_metadata, how="cross")
+            return merged_df        
+        else:
+            return None
+
+    except Exception as e:
+        print(f"Error parsing exports: {e}")
+        return None
+ 
+def _get_exports_dataframe(config):
     """
     Parses the Export Directory using the provided config.
     Extracts correlation_id and source_path from the config dict.

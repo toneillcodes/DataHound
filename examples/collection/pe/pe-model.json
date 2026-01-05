@@ -1,0 +1,60 @@
+{
+    "custom_types": {
+        "PEExectuable": {
+            "icon": {
+                "type": "font-awesome",
+                "name": "file",
+                "color": "#a6a6a6"
+            }
+        },
+        "PESectionEntry": {
+            "icon": {
+                "type": "font-awesome",
+                "name": "gear",
+                "color": "#33cc33"
+            }
+        },
+        "PEIAT": {
+            "icon": {
+                "type": "font-awesome",
+                "name": "folder-tree",
+                "color": "#80ff00"
+            }
+        },        
+        "PEIATEntry": {
+            "icon": {
+                "type": "font-awesome",
+                "name": "gear",
+                "color": "#f5b811"
+            }
+        },
+        "PEEAT": {
+            "icon": {
+                "type": "font-awesome",
+                "name": "folder-tree",
+                "color": "#80ff00"
+            }
+        },        
+        "PEEATEntry": {
+            "icon": {
+                "type": "font-awesome",
+                "name": "gear",
+                "color": "#ffff00"
+            }
+        },
+        "PEDLL": {
+            "icon": {
+                "type": "font-awesome",
+                "name": "folder-tree",
+                "color": "#ffff00"
+            }
+        },
+        "PEImportedDLL": {
+            "icon": {
+                "type": "font-awesome",
+                "name": "folder-tree",
+                "color": "#ffff00"
+            }
+        }
+    }
+}
