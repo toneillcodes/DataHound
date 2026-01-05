@@ -1,0 +1,116 @@
+[ 
+    {
+        "item_type": "node",
+        "item_name": "Nmap Subnets",
+        "item_description": "Nmap subnets from scan output",
+        "source_type": "nmap_subnets_xml",
+		"source_path": "input-file.xml",
+		"id_location": "subnet",
+		"column_mapping": {
+			"subnet": "id",
+			"subnet": "name"
+		},
+		"output_columns": [            
+            "id",
+			"name"
+        ],	
+        "item_kind": "NmapSubnet",
+		"source_name": "nmap-xml-file"
+    },
+    {
+        "item_type": "node",
+        "item_name": "Nmap Scan",
+        "item_description": "Nmap scan of the local network",
+        "source_type": "nmap_hosts_xml",
+		"source_path": "input-file.xml",
+		"id_location": "ip_address",
+		"column_mapping": {
+			"ip_address": "name"
+		},
+		"output_columns": [            
+            "id",
+			"name",
+            "type",
+            "hostname",
+            "host_status"
+        ],	
+        "item_kind": "NmapHost",
+		"source_name": "nmap-xml-file"
+    },
+    {
+        "item_type": "node",
+        "item_name": "Nmap Ports",
+        "item_description": "Nmap ports from the local network",
+        "source_type": "nmap_ports_xml",
+		"source_path": "input-file.xml",
+		"id_location": "port_guid",
+		"column_mapping": {
+			"port": "name"
+		},
+		"output_columns": [            
+            "id",
+            "name"
+        ],	
+        "item_kind": "NmapPort",
+		"source_name": "nmap-xml-file"
+    },
+    {
+        "item_type": "node",
+        "item_name": "Nmap Services",
+        "item_description": "Nmap services from the local network",
+        "source_type": "nmap_ports_xml",
+		"source_path": "input-file.xml",
+		"id_location": "service_guid",
+		"column_mapping": {
+			"service_name": "name"
+		},
+		"output_columns": [            
+            "id",
+            "name"
+        ],	
+        "item_kind": "NmapService",
+		"source_name": "nmap-xml-file"
+    },	
+    {
+        "item_type": "edge",
+        "item_name": "NmapHost (dynamic) -> NmapPort (dynamic)",
+        "item_description": "NmapHost -[:HasOpenPort]-> NmapPort",
+        "source_type": "nmap_ports_xml",
+        "source_path": "input-file.xml",		
+		"edge_type": "static",		
+        "edge_name": "HasOpenPort",
+		"source_column": "ip_address",  
+		"target_column": "port_guid",
+        "source_node_type": "NmapHost",
+        "target_node_type": "NmapPort",
+		"source_name": "nmap-xml-file"
+    },
+    {
+        "item_type": "edge",
+        "item_name": "NmapPort (dynamic) -> NmapService (dynamic)",
+        "item_description": "NmapHost -[:RunsService]-> NmapPort",
+        "source_type": "nmap_ports_xml",
+        "source_path": "input-file.xml",		
+		"edge_type": "static",		
+        "edge_name": "RunsService",
+		"source_column": "port_guid",  
+		"target_column": "service_guid",
+        "source_node_type": "NmapPort",
+        "target_node_type": "NmapService",
+		"source_name": "nmap-xml-file"
+    },
+    {
+        "item_type": "edge",
+        "item_name": "Nmap Subnet membership",
+        "item_description": "Nmap subnet membership from scan output",
+        "source_type": "nmap_subnet_members_xml",
+		"source_path": "input-file.xml",		
+		"edge_type": "static",		
+        "edge_name": "ContainsHost",		
+		"source_column": "subnet",  
+		"target_column": "ip_address",
+        "source_node_type": "NmapSubnet",
+        "target_node_type": "NmapHost",
+		"source_name": "nmap-xml-file"
+    }
+]

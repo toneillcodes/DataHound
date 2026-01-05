@@ -41,21 +41,21 @@ The collector translates Nmap scan results into the following entity relationshi
 * **NmapPort** -[:RunsService]-> **NmapService**: Links the open port to the identified application and its version.
 
 ## Collection Modules
-### 1. Host & Subnet Mapping (`collect_nmap_hosts_subnets_xml`)
+### 1. Host & Subnet Mapping
 Extracts the network architecture from the scan:
 * **Network Derivation:** Calculates network addresses from host IPs using a configurable `/24` (default) or custom mask.
 * **Status Tracking:** Captures whether hosts were reachable during the scan duration.
 
 ---
 
-### 2. Service & Port Analysis (`collect_nmap_ports_xml`)
+### 2. Service & Port Analysis
 Provides a granular breakdown of every open port:
 * **Unique Identification:** Uses a derived GUID (IP:Port) to prevent node collisions while maintaining visual clarity in the graph.
 * **Banner Grabbing Support:** Maps product and version strings directly to the port node.
 
 ---
 
-### 3. Unified Manifest Generation (`collect_complete_nmap_manifest`)
+### 3. Unified Manifest Generation
 The "Ultimate Merge" module that flattens Subnet, Host, and Port data into a single security-focused DataFrame before JSON serialization.
 
 ## Collection Methods
@@ -130,7 +130,7 @@ RETURN h, p, s
 
 Query 3: Segment Breakdown
 ```cypher
-MATCH (n:Subnet)<-[:BelongsTo]-(h:NmapHost)
+MATCH (n:Subnet)-[:ContainsHost]-(h:NmapHost)
 WHERE h.host_status = 'up'
 RETURN n.id, count(h) as host_count
 ORDER BY host_count DESC

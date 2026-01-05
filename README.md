@@ -107,7 +107,7 @@ $
 | HTTP | Generic HTTP collector |
 | JSON | Generic file-based JSON collector |
 | LDAP | Generic LDAP collector |
-| NMap | NMap XML output collector |
+| Nmap | Nmap XML and Gnmap output collectors |
 | PE | Windows Portable Execuable file format collector |
 | SMB | Windows Server Message Block (SMB) share collector |
 | XML | Generic file-based XML collector |
