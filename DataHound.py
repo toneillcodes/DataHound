@@ -868,43 +868,6 @@ def process_dpapi_blob(config):
         return df_dpapi
     else:
         return False
-    
-def _process_dpapi_masterkey(config):
-    df_blobs = collect_dpapi_blob_data(config)
-    if df_blobs is None:
-        logging.error("Unable to locate DPAPI blobs. Cannot run masterkey collection without blobs.")
-        return False
-
-    # todo: account for GUIDs that are tied to a blob but cannot be found on the local filesystem with 'collect_masterkey_data'
-    unique_guids = df_blobs['master_key_guid'].dropna().unique()
-
-    all_results = []
-
-    for mk_guid in unique_guids:
-        if not mk_guid:
-            logging.error(f"Skipping empty GUID entry.")
-            continue
-
-        # Using the function we built previously
-        data = collect_masterkey_data(mk_guid)         
-        if data:
-            all_results.extend(data)
-        else:
-            logging.warning(f"No MasterKey file found for GUID: {mk_guid}")
-
-    # 2. Convert the list of dictionaries into a single DataFrame
-    if all_results:
-        df_final = pd.DataFrame(all_results)
-        
-        # Reorder for readability
-        cols = ["Username", "GUID", "Iterations", "Created_At", "Owner_SID", "Full_Path"]
-        # Ensure only existing columns are requested
-        available_cols = [c for c in cols if c in df_final.columns]
-
-        return df_final[available_cols]
-    else:
-        print("No MasterKey data found for any provided GUIDs.")
-        return pd.DataFrame()  
 
 def process_dpapi_masterkey(config):
     df_blobs = collect_dpapi_blob_data(config)
@@ -924,7 +887,7 @@ def process_dpapi_masterkey(config):
         
         if mk_data:
             # mk_data is a list of dictionaries; add them all
-            all_results.extend(mk_data)
+            all_results.extend(mk_data)         
         else:
             # FALLBACK: Create a skeleton record so the GUID is preserved
             logging.warning(f"No MasterKey file found for GUID: {mk_guid}. Creating placeholder.")
@@ -939,13 +902,59 @@ def process_dpapi_masterkey(config):
 
     # convert to dataframe
     if all_results:
-        df_final = pd.DataFrame(all_results)
+        df_final = pd.DataFrame(all_results)  
         #cols = ["Username", "GUID", "Iterations", "Created_At", "Owner_SID", "Full_Path"]
         #available_cols = [c for c in cols if c in df_final.columns]
         #return df_final[available_cols]
         return df_final
     
     return pd.DataFrame()
+
+def process_dpapi_masterkey_sids(config):
+    """
+    Pivots from discovered DPAPI blobs to MasterKey files on disk.
+    Returns a DataFrame of unique Owner SIDs and their resolved usernames.
+    """
+    correlation_id = config.get('correlation_id', str(uuid.uuid4()))
+    
+    # 1. Get the blobs to find which MasterKey GUIDs we care about
+    df_blobs = collect_dpapi_blob_data(config)
+    if df_blobs is None or df_blobs.empty:
+        logging.error("Unable to locate DPAPI blobs. Cannot run masterkey collection.")
+        return pd.DataFrame()
+
+    unique_guids = df_blobs['master_key_guid'].dropna().unique()
+    all_masterkeys = []
+
+    # 2. Search for the MasterKey files on the filesystem
+    for mk_guid in unique_guids:
+        mk_data = collect_masterkey_data(mk_guid) 
+        if mk_data:
+            all_masterkeys.extend(mk_data)
+        else:
+            logging.warning(f"MasterKey file not found on disk for GUID: {mk_guid}")
+
+    if not all_masterkeys:
+        return pd.DataFrame()
+
+    # 3. Process the MasterKey list into Unique SIDs
+    df_mk = pd.DataFrame(all_masterkeys)
+    
+    # Filter for unique Owner_SID values only
+    # We want to know who owns the keys, not necessarily every individual key file
+    unique_sids = df_mk[['Owner_SID', 'Username']].drop_duplicates(subset=['Owner_SID'])
+
+    # 4. Format for DataHound processing
+    sid_results = []
+    for _, row in unique_sids.iterrows():
+        sid_results.append({
+            "correlation_id": correlation_id,
+            "sid": row['Owner_SID'],
+            "resolved_name": row['Username'],
+            "type": "USER_SID_IDENTIFIED"
+        })
+
+    return pd.DataFrame(sid_results)
 
 def process_windows_host_source(config):
     item_name = config.get('item_name', 'NA')
@@ -1335,6 +1344,7 @@ def get_data_from_source(config, source_type_override=None):
         "pe_iat_imports": process_pe_dll_imports,                           
         "dpapi_blob": process_dpapi_blob,                   
         "dpapi_masterkey": process_dpapi_masterkey,         # does this make sense?
+        "dpapi_masterkey_sids": process_dpapi_masterkey_sids,         # does this make sense?
         "windows_host": process_windows_host_source,        # todo: add linux host enumeration     
         "nmap_hosts_xml": process_nmap_hosts_xml_source,
         "nmap_ports_xml": process_nmap_ports_xml_source,

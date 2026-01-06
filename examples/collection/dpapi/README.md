@@ -40,10 +40,10 @@ The collector translates the DPAPI ecosystem into the following entity relations
 ### Edges
 * **DPAPIBlob** -[:RequiresKey]-> **DPAPIMasterKey**: Defines the cryptographic dependency between a blob and its key.
 * **UserSID** -[:OwnsKey]-> **DPAPIMasterKey**: Links the MasterKey to the specific user profile it belongs to.
-* **WindowsHost** -[:StoredOn]-> **DPAPIBlob**: Maps the physical location of the encrypted secret to a host.
+* **WindowsHost** -[:HostContains]-> **DPAPIBlob**: Maps the physical location of the encrypted secret to a host.
 
 ## Collection Modules
-### 1. Blob Metadata & Magic Parsing (`collect_dpapi_blob_data`)
+### 1. Blob Metadata & Magic Parsing
 Performs inspection of files to find DPAPI headers:
 * **Magic Header Search:** Scans for the 20-byte DPAPI provider signature.
 * **Provider GUID Extraction:** Identifies the exact MasterKey GUID needed for the file.
@@ -51,7 +51,7 @@ Performs inspection of files to find DPAPI headers:
 
 ---
 
-### 2. MasterKey Analysis & SID Resolution (`collect_masterkey_data`)
+### 2. MasterKey Analysis & SID Resolution
 Locates the physical MasterKey files in `APPDATA` or `System32`:
 * **SID-to-Name Mapping:** Uses `win32security` to resolve the directory owner's SID to a username.
 * **Crypto-Parameter Extraction:** Extracts the 16-byte salt and the iteration count for offline brute-forcing preparation.
