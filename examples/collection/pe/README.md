@@ -123,7 +123,21 @@ For a complete example, reviews the pe-testing-certutil.json file
 }
 ```
 ## Invocation
-Running a ```collect``` operation for certutil.exe using the definitions from ```pe-testing-certutil.json``` and outputting the graph to ```pe-output-certutil.json```:
+1. Upload the custom icon definitions in ```pe-model.json``` to BloodHound using your method of choice  
+Example using [HoundTrainer](https://github.com/toneillcodes/HoundTrainer)
+```dos
+> python houndtrainer.py upload --type node --url https://bhce.example.com --file pe-model.json
+[INFO] Uploading model from file: pe-model.json...
+Enter JWT:
+[INFO] Operation 'upload' for type 'node' with file pe-model.json was successful.
+[INFO] Done.
+>
+```
+
+3. Update the ```source_path``` property in the collection definitions to point to the PE file to analyze.  
+ Example collection defintions: ```pe-testing-certutil.json```
+
+4. Run a DataHound collect operation using the defintions from ```pe-testing-certutil.json``` and output the graph JSON to ```pe-output-certutil.json```
 ```cmd
 $ python DataHound.py --operation collect --config examples\pe\pe-testing-certutil.json --source-kind PE --output pe-output-certutil.json
 [INFO] Successfully read config from: pe-testing-certutil.json
@@ -156,8 +170,6 @@ Once loaded into BloodHound, you can run queries that simplify analysis by highl
 ```cypher
 MATCH (f:PEExectuable)-[:HasSection]->(sec:PESectionEntry)-[:ContainsElement]->(iat:PEIAT)-[:Imports]->(e:PEIATEntry)
 WHERE e.name IN ['VIRTUALALLOCEX', 'WRITEPROCESSMEMORY', 'CREATEREMOTETHREAD']
-WITH f, count(e) as critical_count
-WHERE critical_count = 3
 RETURN f
 ```
 

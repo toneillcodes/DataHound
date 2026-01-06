@@ -104,7 +104,9 @@ The collector uses a JSON configuration to define how specific Nmap data points 
 ```
 
 ## Invocation
-1. Upload the custom icon definitions in ```banner-model.json``` to BloodHound using your method of choice  
+1. Run an Nmap scan with XML output ```-oX test.xml``` and/or GNmap ```-oG test.gnmap``` output enabled.
+
+2. Upload the custom icon definitions in ```nmap-model.json``` to BloodHound using your method of choice  
 Example using [HoundTrainer](https://github.com/toneillcodes/HoundTrainer)
 ```dos
 > python houndtrainer.py upload --type node --url https://bhce.example.com --file nmap-model.json
@@ -124,7 +126,10 @@ Enter JWT:
 >
 ```
 
-2. Run a collect operation on network scan output with the transformation defintions for either XML ```nmap-collection-definitions-xml.json``` or Gnmap ```nmap-collection-definitions-gnmap.json```
+3. Update the ```source_path``` property in the XML or GNmap collection definitions to reference the scan output file.
+ ```nmap-collection-definitions-xml.json``` or Gnmap ```nmap-collection-definitions-gnmap.json```
+
+4. Run a DataHound collect operation with the updated defintions file and output the graph JSON to ```nmap-graph.json```
 ``` dos
 > python DataHound.py --operation collect --source-kind Nmap --config nmap-collection-definitions-xml.json --output nmap-graph.json
 [INFO] Successfully read config from: nmap-collection-definitions-xml.json
