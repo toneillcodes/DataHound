@@ -40,12 +40,21 @@ When a job executes, the core engine performs the following:
 | Type | source_type ID | Description | Status |
 |----|----|----|----|
 | CSV File | file_csv | Generic file-based CSV collector | Development |
-| DPAPI | dpapi_blob | Windows DPAPI blob and master key collector | Development |
+| DPAPI | dpapi_blob | Windows DPAPI blob collector | Development |
+| DPAPI | dpapi_masterkey | Windows DPAPI master key collector | Development |
 | Host | host_windows | Generic Host collector for Windows and Linux Computers | Development |
 | HTTP | url | Generic HTTP collector | Development |
 | JSON File | file_json | Generic file-based JSON collector  Development |
 | LDAP | ldap | Generic LDAP collector | Development |
-| NMap | nmap_xml | NMap XML output collector | Development |
+| Nmap | nmap_xml | Nmap XML output collector | Development |
+| Nmap | nmap_hosts_xml | Development |
+| Nmap | nmap_ports_xml | Development |
+| Nmap | nmap_subnets_xml | Development |
+| Nmap | nmap_subnet_members_xml | Development |
+| Nmap | nmap_hosts_gnmap | Development |
+| Nmap | nmap_ports_gnmap | Development |
+| Nmap | nmap_subnets_gnmap | Development |
+| Nmap | nmap_subnet_members_gnmap | Development | 
 | PE | pe | Windows Portable Execuable file format collector | Development |
 | PE | pe_sections | Windows Portable Execuable file format collector | Development |
 | PE | pe_iat | Windows Portable Execuable file format collector | Development |

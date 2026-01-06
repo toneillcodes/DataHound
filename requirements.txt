@@ -1,4 +1,15 @@
+# Data Processing & Analysis
 pandas
+jsonpath-ng
+pyyaml
+
+# Network & Directory Services
 requests
 ldap3
-jsonpath-ng
+
+# Binary & Malware Analysis (for the PE modules)
+pefile
+peutils
+
+# System & Process Utilities
+psutil

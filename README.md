@@ -129,6 +129,7 @@ Explore  practical examples to see DataHound collect operations in action.
 ### Collect Examples
 - [BloodHound Collector](examples/collection/bloodhound/README.md)
 - [LDAP Collector](examples/collection/ldap/README.md)
+- [Nmap Collector](examples/collection/nmap/README.md)
 
 ### ```connect```: **Graph Correlation and Linking**
 The connect operation takes two JSON files (```--graphA``` and ```--graphB```) and creates new edges between nodes that share a common, correlatable property.
