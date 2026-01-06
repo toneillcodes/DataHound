@@ -114,57 +114,61 @@ def collect_nmap_hosts_xml(xml_path, config=None):
         return pd.DataFrame()
     
 def collect_nmap_ports_xml(xml_path, config=None):
-    """
-    Parses Nmap XML to return a DataFrame focusing on port and service status.
-    One row per port found on each host.
-    """
     correlation_id = (config or {}).get('correlation_id', str(uuid.uuid4()))
-    port_rows = []
+    port_results = []
 
     try:
         tree = ET.parse(xml_path)
         root = tree.getroot()
 
         for host in root.findall(".//host"):
-            addr_tag = host.find("./address[@addrtype='ipv4']")
-            ip = addr_tag.get('addr') if addr_tag is not None else "<unknown>"
+            ip_address = host.find("./address[@addrtype='ipv4']").get('addr')
             
-            # Only process ports if the host is up, otherwise Nmap may not have data
             for port in host.findall(".//port"):
                 port_id = port.get('portid')
                 protocol = port.get('protocol')
+                state = port.find("state").get('state')
                 
-                state_tag = port.find("./state")
-                port_state = state_tag.get('state') if state_tag is not None else "unknown"
-                
-                service_tag = port.find("./service")
-                service_name = service_tag.get('name') if service_tag is not None else "unknown"
-                product = service_tag.get('product') if service_tag is not None else ""
+                # Default values if no service info is found
+                service_name = "unknown"
+                product = ""
+                version = ""
+                extrainfo = ""
+                cpe_list = []
 
-                # todo: move this post-processing logic to the coordinator function in DataHound.py
-                # combine port with the IP to generate a derived GUID to prevent node collisons
-                # does this really matter? maybe not. it might be interesting to have common port nodes...idk
-                # maintaining a familiar format will make it easy to parse visually
-                derived_port_guid = f"{ip}:{port_id}"
-                derived_service_guid = f"{ip}:{port_id}:{service_name}"
+                service_tag = port.find("service")
+                if service_tag is not None:
+                    service_name = service_tag.get('name', 'unknown')                
+                    product = service_tag.get('product', 'unknown')
+                    version = service_tag.get('version', 'unknown')
+                    extrainfo = service_tag.get('extrainfo', 'unknown')
+                    
+                    # Collect all CPEs associated with this service
+                    cpes = service_tag.findall("cpe")
+                    cpe_list = [c.text for c in cpes]
 
-                port_rows.append({
+                derived_port_guid = f"{ip_address}:{port_id}"
+                derived_service_guid = f"{ip_address}:{port_id}:{service_name}"
+
+                port_results.append({
                     "correlation_id": correlation_id,
-                    "port_guid": derived_port_guid,
-                    "service_guid": derived_service_guid,
-                    "ip_address": ip,
+                    "ip_address": ip_address,
                     "port": port_id,
+                    "port_guid": derived_port_guid,
+                    "service_guid": derived_service_guid,                    
                     "protocol": protocol,
-                    "port_state": port_state,
+                    "state": state,
                     "service_name": service_name,
-                    "version": product,
-                    "type": "PORT_DETAIL"
+                    "product": product,
+                    "version": version,
+                    "extrainfo": extrainfo,
+                    "cpe": ", ".join(cpe_list)
                 })
 
-        return pd.DataFrame(port_rows)
+        return pd.DataFrame(port_results)
 
     except Exception as e:
-        logging.error(json.dumps({"event": "PORT_DETAIL_PARSE_ERROR", "error": str(e)}))
+        print(f"[!] Error parsing XML ports: {e}")
         return pd.DataFrame()
 
 def collect_merged_nmap_report(xml_path, config=None):
@@ -386,58 +390,68 @@ def collect_nmap_hosts_gnmap(gnmap_path, config=None):
         return pd.DataFrame()
 
 def collect_nmap_ports_gnmap(gnmap_path, config=None):
-    """
-    Parses Nmap GNMAP to return a DataFrame focusing on port and service status.
-    One row per port found on each host.
-    """
     correlation_id = (config or {}).get('correlation_id', str(uuid.uuid4()))
     port_rows = []
 
     try:
         with open(gnmap_path, 'r') as f:
             for line in f:
+                # Only process lines containing the "Ports:" keyword
                 if "Ports:" not in line:
                     continue
 
-                # Extract IP
+                # 1. Standardized IP Extraction
                 ip_match = re.search(r"Host: ([0-9.]+)", line)
-                ip = ip_match.group(1) if ip_match else "<unknown>"
+                if not ip_match: continue
+                ip = ip_match.group(1)
 
-                # Extract everything after Ports:
-                ports_part = line.split("Ports: ")[1].strip()
-                # Ports are comma separated: 80/open/tcp//http//, 443/open/tcp//https//
-                port_entries = ports_part.split(", ")
+                # 2. Extract the Ports section (handling tabs/newlines)
+                # We split on the first occurrence of "Ports: " and strip the trailing data
+                ports_part = line.split("Ports: ")[1].split("\t")[0].strip()
+                
+                # 3. Process Comma-Separated Port Entries
+                port_entries = [e for e in ports_part.split(", ") if e.strip()]
 
                 for entry in port_entries:
-                    parts = entry.split("/")
-                    if len(parts) >= 4:
-                        port_id = parts[0].strip()
-                        port_state = parts[1].strip()
-                        protocol = parts[2].strip()
-                        service_name = parts[4].strip() if parts[4] else "unknown"
-                        product = parts[5].strip() if len(parts) > 5 else ""
-
-                        # todo: move this post-processing logic to the coordinator function in DataHound.py
+                    # Based on Documentation https://nmap.org/book/man-output.html
+                    # 0:Port, 1:State, 2:Protocol, 3:Owner, 4:Service, 5:SunRPC, 6:Version
+                    subfields = entry.split("/")
+                    
+                    if len(subfields) >= 7:
+                        port_id      = subfields[0].strip()
+                        state        = subfields[1].strip()
+                        protocol     = subfields[2].strip()
+                        service_name = subfields[4].strip() or "unknown"
+                        version_info = subfields[6].strip() or "unknown"
+                        
+                        # DataHound GUID Standard: Ensures XML and GNmap nodes match
                         derived_port_guid = f"{ip}:{port_id}"
                         derived_service_guid = f"{ip}:{port_id}:{service_name}"
 
                         port_rows.append({
                             "correlation_id": correlation_id,
-                            "port_guid": derived_port_guid,
-                            "service_guid": derived_service_guid,
                             "ip_address": ip,
                             "port": port_id,
+                            "port_guid": derived_port_guid,
+                            "service_guid": derived_service_guid,
                             "protocol": protocol,
-                            "port_state": port_state,
+                            "state": state,
                             "service_name": service_name,
-                            "version": product,
+                            "product": version_info, 
+                            "version": "NA", # For GNmap, 'product' and 'version' are lumped in subfield 6
+                            "extrainfo": "NA", # GNmap does not support extrainfo
+                            "cpe": "NA", # GNmap does not support CPE subfields
                             "type": "PORT_DETAIL"
                         })
 
         return pd.DataFrame(port_rows)
 
     except Exception as e:
-        logging.error(json.dumps({"event": "PORT_DETAIL_PARSE_GNMAP_ERROR", "error": str(e)}))
+        logging.error(json.dumps({
+            "event": "PORT_DETAIL_PARSE_GNMAP_ERROR", 
+            "correlation_id": correlation_id,
+            "error": str(e)
+        }))
         return pd.DataFrame()
 
 def collect_merged_nmap_report_gnmap(gnmap_path, config=None):

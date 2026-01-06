@@ -104,40 +104,70 @@ The collector uses a JSON configuration to define how specific Nmap data points 
 ```
 
 ## Invocation
-Running a collect operation for an internal network scan:
-``` dos
-> python DataHound.py --operation collect --source-path scans\internal_net.xml --output nmap-graph.json
-[INFO] Detected format: XML
-[INFO] Successfully processed 254 hosts.
-[INFO] Successfully identified 3 subnets.
-[INFO] Successfully mapped 1,240 port instances.
-[INFO] Writing graph to output file: nmap-graph.json
+1. Upload the custom icon definitions in ```banner-model.json``` to BloodHound using your method of choice  
+Example using [HoundTrainer](https://github.com/toneillcodes/HoundTrainer)
+```dos
+> python houndtrainer.py upload --type node --url https://bhce.example.com --file nmap-model.json
+[INFO] Uploading model from file: nmap-model.json...
+Enter JWT:
+[INFO] Operation 'upload' for type 'node' with file nmap-model.json was successful.
+[INFO] Done.
+>
+> python .\houndtrainer.py list --type node --url https://bhce.example.com
+[INFO] Listing all custom types...
+Enter JWT:
+[INFO] ID: 108, Kind Name: NmapHost
+[INFO] ID: 109, Kind Name: NmapPort
+[INFO] ID: 110, Kind Name: NmapSubnet
+[INFO] ID: 111, Kind Name: NmapService
 [INFO] Done.
 >
 ```
+
+2. Run a collect operation on network scan output with the transformation defintions for either XML ```nmap-collection-definitions-xml.json``` or Gnmap ```nmap-collection-definitions-gnmap.json```
+``` dos
+> python DataHound.py --operation collect --source-kind Nmap --config nmap-collection-definitions-xml.json --output nmap-graph.json
+[INFO] Successfully read config from: nmap-collection-definitions-xml.json
+[INFO] Successfully processed Nmap Subnets
+[INFO] Successfully added 1 items to nodes.
+[INFO] Successfully processed Nmap Scan
+[INFO] Successfully added 4 items to nodes.
+[INFO] Successfully processed Nmap Ports
+[INFO] Successfully added 7 items to nodes.
+[INFO] Successfully processed Nmap Services
+[INFO] Successfully added 7 items to nodes.
+[INFO] Successfully processed NmapHost (dynamic) -> NmapPort (dynamic)
+[INFO] Successfully added 7 items to edges.
+[INFO] Successfully processed NmapPort (dynamic) -> NmapService (dynamic)
+[INFO] Successfully added 7 items to edges.
+[INFO] Successfully processed Nmap Subnet membership
+[INFO] Successfully added 4 items to edges.
+[INFO] Writing graph to output file: nmap-graph.json
+[INFO] Successfully Wrote graph to nmap-graph.json
+>
+```
+
+3. Upload the resulting ```nmap-graph.json``` to BloodHound.
 
 ## Use Cases for Cypher Queries
 Once loaded into BloodHound, you can run queries that simplify analysis by highlighting relationships.
 
 * **Query 1: Find Hosts with RDP and SMB Open**
 ```cypher
-MATCH (h:NmapHost)-[:HasPort]->(p:NmapPort)
-WHERE p.port IN ['3389', '445']
-WITH h, count(p) as port_count
-WHERE port_count = 2
+MATCH (h:NmapHost)-[:HasOpenPort]->(p:NmapPort)
+WHERE p.name IN ['3389', '445']
 RETURN h
 ```
 
 * **Query 2: Map Vulnerable Service Versions**
 ```cypher
-MATCH (h:NmapHost)-[:HasPort]->(p:NmapPort)-[:RunsService]->(s:NmapService)
-WHERE s.version CONTAINS 'OpenSSH 7.2'
+MATCH (h:NmapHost)-[:HasOpenPort]->(p:NmapPort)-[:RunsService]->(s:NmapService)
+WHERE s.version CONTAINS 'OpenSSH 7.2' OR s.product CONTAINS 'OpenSSH 7.2'
 RETURN h, p, s
 ```
 
-* **Query 3: Querying "Blast Radius"**
+* **Query 3: Find Hosts in a Subnet ("Blast Radius")**
 ```cypher
-// Find all hosts in a specific subnet
-MATCH (s:Subnet {id: '10.0.0.0/24'})-[:Contains]->(hosts) 
+MATCH (s:NmapSubnet {objectid: '10.10.110.0/24'})-[r]-(hosts) 
 RETURN hosts
 ```

@@ -1,0 +1,32 @@
+{
+    "custom_types": {
+        "NmapHost": {
+            "icon": {
+                "type": "font-awesome",
+                "name": "server",
+                "color": "#007bff"
+            }
+        },
+        "NmapPort": {
+            "icon": {
+                "type": "font-awesome",
+                "name": "door-open",
+                "color": "#28a745"
+            }
+        },
+        "NmapSubnet": {
+            "icon": {
+                "type": "font-awesome",
+                "name": "network-wired",
+                "color": "#6c757d"
+            }
+        },
+        "NmapService": {
+            "icon": {
+                "type": "font-awesome",
+                "name": "square-binary",
+                "color": "#ffc107"
+            }
+        }
+    }
+}

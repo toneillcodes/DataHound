@@ -5,6 +5,8 @@ The **DPAPI Collector** is a specialized forensic utility designed to locate and
 
 Representing DPAPI structures as a graph allows researchers to bypass the complexity of manual registry and filesystem carving. It enables instant visualization of which user credentials or system secrets are at risk based on the discovery of orphaned or accessible MasterKeys.
 
+> ⚠️ **Warning:** This content is still under development and will change. Some features mentioned are part of near-future development.
+
 <p align="center">
   <img width="600" src="assets/dpapi-blob-to-masterkey-example.png"><br/>
   Mapping encrypted Chrome credentials to their parent DPAPI MasterKey and User SID.
@@ -84,7 +86,7 @@ The collector uses a JSON configuration to define the scope of the search and me
 ## Invocation
 Running a collect operation to find blobs in a specific user profile:
 ```dos
-> python DataHound.py --operation collect --source-path "C:\Users\Target\AppData" --output dpapi-graph.json
+> python DataHound.py --operation collect --source-kind DPAPI --config dpapi-transformation-defintions.json --output dpapi-graph.json
 [INFO] Scanning C:\Users\Target\AppData for DPAPI Magic...
 [INFO] [DPAPI_BLOB_FOUND] file: Login Data, mk_guid: {a1b2c3d4...}
 [INFO] [MASTERKEY_FOUND] Owner: DOMAIN\Target, SID: S-1-5-21...
