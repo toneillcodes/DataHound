@@ -30,12 +30,12 @@ def collect_json_data(config: Dict[str, Any]) -> Optional[pd.DataFrame]:
     :return: A pandas DataFrame, or None on error.
     """
     correlation_id = str(uuid.uuid4())
-    json_file_path = config.get('input_file')
+    json_file_path = config.get('source_path')
     data_root_key = config.get('data_root')
 
     # validation and configuration check
     if not json_file_path or not data_root_key:
-        error_msg = f"Missing {'input_file' if not json_file_path else ''}{' and ' if not json_file_path and not data_root_key else ''}{'data_root' if not data_root_key else ''}."
+        error_msg = f"Missing {'source_path' if not json_file_path else ''}{' and ' if not json_file_path and not data_root_key else ''}{'data_root' if not data_root_key else ''}."
         logging.error(json.dumps({
             "event": "CONFIG_ERROR",
             "correlation_id": correlation_id,

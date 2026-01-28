@@ -49,6 +49,9 @@ from collector_modules.nmap_collector import collect_nmap_hosts_gnmap
 from collector_modules.nmap_collector import collect_nmap_ports_gnmap
 from collector_modules.nmap_collector import collect_nmap_subnets_gnmap
 from collector_modules.nmap_collector import collect_nmap_subnet_members_gnmap
+# arrows json
+from collector_modules.arrows_collector import collect_arrows_node_data
+from collector_modules.arrows_collector import collect_arrows_edge_data
 
 # configure logging
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
@@ -248,25 +251,30 @@ def transform_node(input_object: pd.DataFrame, config: dict, source_kind: str):
     Supports dot-paths in column_mapping and id_location to resolve nested objects.
     """
     column_mapping: Dict[str, str] = config.get('column_mapping', {})
-    target_columns: List[str] = config.get('output_columns', [])
-    item_kind: str = config['item_kind']
+    target_columns: List[str] = config.get('output_columns', [])    
     id_location: str = config['id_location']
     
+    #print("(transform_node) Copying object")
     df = input_object.copy()
 
+    #print("(transform_node) Checking materialization")
     # We only need to materialize a column for a source key if it's dotted (contains '.')
     # or if the DF doesn't already have that column name.
     for source_path, target_name in column_mapping.items():
-        needs_materialization = ('.' in source_path) or (source_path not in df.columns)
+        #print(f"(transform_node) Processing item: {source_path}")
+        needs_materialization = ('.' in source_path) #or (source_path not in df.columns)
+        #print(f"(transform_node) Processing item: {source_path}")
         # todo: consider controlling this with a 'needs_materialization' property in the config file 
         #needs_materialization = config.get('needs_materialization')
         if needs_materialization:
             # Materialize source_path into a temporary column so .rename() can pick it up.
             df[source_path] = df.apply(lambda row: get_nested(row, source_path), axis=1)
             
+    #print("(transform_node) Rename on df")            
     df_renamed = df.rename(columns=column_mapping)
     #print(f"df_renamed: {df_renamed}")
 
+    #print("(transform_node) Column filtering")
     # Filter to requested target columns (post-rename names)
     valid_cols = [col for col in target_columns if col in df_renamed.columns]
     # todo: check on the important fields and drop rows that are missing values we need
@@ -292,6 +300,19 @@ def transform_node(input_object: pd.DataFrame, config: dict, source_kind: str):
     # Convert the id_series to a list for zipping
     id_list = id_series.astype(str).tolist() # Convert to list of strings for safety
 
+    item_kind_type: str = config.get('item_kind_type', 'static')
+    if item_kind_type == "from_column":
+        item_kind_column_id = config['item_kind_column_id']
+        if ('.' in item_kind_column_id):
+            # Materialize the column in the current df context
+            df_transformed[item_kind_column_id] = df.apply(lambda row: get_nested(row, item_kind_column_id), axis=1)
+        
+        # FIX: Convert the whole column to a list instead of picking .iloc[0]
+        kind_list = df_transformed[item_kind_column_id].astype(str).tolist()
+    else:
+        # If static, create a list of the same static value for every row
+        kind_list = [config['item_kind']] * len(records)
+
     # Combine the IDs and the properties for final structure
     # Use zip() to iterate through IDs and property dictionaries simultaneously
     node_data = [
@@ -300,12 +321,63 @@ def transform_node(input_object: pd.DataFrame, config: dict, source_kind: str):
             "kinds": [item_kind, source_kind],
             "properties": properties_dict
         }
-        for node_id, properties_dict in zip(id_list, records)
+        for node_id, properties_dict, item_kind in zip(id_list, records, kind_list)
     ]
 
     return node_data
 
 def transform_edge(input_object: pd.DataFrame, config: dict):
+    df = input_object.copy()
+    column_mapping = config.get('column_mapping', {})
+    source_col = config['source_column']
+    target_col = config['target_column']
+    
+    # 1. Materialize dotted paths (Keep this - it handles your nested JSON lookups)
+    source_paths = set(column_mapping.keys()) | {source_col, target_col}
+    for path in source_paths:
+        if ('.' in path) or (path not in df.columns):
+            df[path] = df.apply(lambda row: get_nested(row, path), axis=1)
+
+    df.rename(columns=column_mapping, inplace=True)
+    
+    if config.get('target_is_multi_valued', False):
+        df = df.explode(target_col)
+    
+    # 2. Filter out nulls
+    df = df[df[target_col].notnull() & df[source_col].notnull()]
+
+    # 3. Resolve edge data in a single pass (The "Simple" way)
+    edge_type = config.get('edge_type')
+    edge_col_id = config.get('edge_column_id')
+    edge_name = config.get('edge_name', 'RELATED_TO')
+    target_column_id = config.get('target_column_id')
+
+    edge_data = []
+    for row in df.to_dict('records'):
+        target_val = row[target_col]
+        source_val = row[source_col]
+
+        # Resolve end_id
+        if isinstance(target_val, dict) and target_column_id:
+            end_id = target_val.get(target_column_id)
+        else:
+            end_id = target_val
+
+        # Resolve edge_kind
+        if edge_type == 'from_column':
+            kind = row[edge_col_id]        
+        else:
+            kind = edge_name
+
+        edge_data.append({
+            "kind": str(kind or edge_name).strip(),
+            "start": {"value": str(source_val).strip()},
+            "end": {"value": str(end_id).strip()}
+        })
+    
+    return edge_data
+
+def orig_transform_edge(input_object: pd.DataFrame, config: dict):
     """
     Transforms a DataFrame into a list of edge dictionaries.
     Supports dot-paths in column_mapping, target_column, and source_column 
@@ -370,15 +442,20 @@ def transform_edge(input_object: pd.DataFrame, config: dict):
     # vectorized edge_kind calculation, depending on the 'edge_type' control property
     edge_type = config['edge_type']
     if edge_type == 'from_column':
+        #print("Processing edge from_column type")
         edge_object = df[target_col]
         edge_col_id = config['edge_column_id']
+        #print(f"edge_col_id: {edge_col_id}")
         # If the target is a dict, extract the nested edge kind. Otherwise, use the value directly.
         df['edge_kind'] = edge_object.apply(
             lambda x: x.get(edge_col_id) if isinstance(x, dict) and x.get(edge_col_id) is not None else x
         ).astype(str).str.strip()
+        #print(f"df['edge_kind'] = {df['edge_kind']}")
     else:
         df['edge_kind'] = str(config['edge_name']).strip()
-        
+
+    #print(f"df['edge_kind'] = {df['edge_kind']}")
+
     # construct edge objects from transformed dataframe
     edge_data = [
         {
@@ -571,9 +648,9 @@ def process_json_source(config):
     :param config: data collection and transformation definition in JSON format
     """
     item_name = config.get('item_name', 'NA')
-    source_path = config.get('input_file')
+    source_path = config.get('source_path')
     if not source_path:
-        logging.error(f"'input_file' is required. Skipping item: {item_name}.")
+        logging.error(f"'source_path' is required. Skipping item: {item_name}.")
         return False
         
     json_data = collect_json_data(config)
@@ -1094,6 +1171,34 @@ def process_nmap_subnet_members_gnmap(config):
     else:
         return False
     
+def process_arrows_nodes_json(config):
+    item_name = config.get('item_name', 'NA')
+    source_path  = config.get("source_path")
+    if not source_path:
+        logging.error(f"'source_path' is required. Skipping item: {item_name}.")
+        return False
+    df_arrows_nodes = collect_arrows_node_data(config)
+    if df_arrows_nodes  is not None:
+        #print(f"df_arrows_nodes: {df_arrows_nodes}")
+        logging.info(f"Successfully processed {item_name}")
+        return df_arrows_nodes
+    else:
+        return False        
+    
+def process_arrows_edges_json(config):
+    item_name = config.get('item_name', 'NA')
+    source_path  = config.get("source_path")
+    if not source_path:
+        logging.error(f"'source_path' is required. Skipping item: {item_name}.")
+        return False
+    df_arrows_edges = collect_arrows_edge_data(config)
+    if df_arrows_edges is not None:
+        #print(f"df_arrows_edges: {df_arrows_edges}")
+        logging.info(f"Successfully processed {item_name}")
+        return df_arrows_edges
+    else:
+        return False      
+
 def generate_static_node(config: dict) -> Optional[pd.DataFrame]:
     """
     Creates a single-row DataFrame from static configuration.
@@ -1311,6 +1416,7 @@ def process_config_item(config, source_kind=None):
     # Apply transformation logic
     try:
         if item_type == 'node':
+            #print(f"Using tranformation function: {transformer}")
             transformed_data = transformer(df, config, source_kind)
         else:
             transformed_data = transformer(df, config)
@@ -1353,7 +1459,9 @@ def get_data_from_source(config, source_type_override=None):
         "nmap_hosts_gnmap": process_nmap_hosts_gnmap,
         "nmap_ports_gnmap": process_nmap_ports_gnmap,
         "nmap_subnets_gnmap": process_nmap_subnets_gnmap,
-        "nmap_subnet_members_gnmap": process_nmap_subnet_members_gnmap,        
+        "nmap_subnet_members_gnmap": process_nmap_subnet_members_gnmap,    
+        "arrows_nodes": process_arrows_nodes_json,    
+        "arrows_edges": process_arrows_edges_json,    
         "static": generate_static_node # todo: does this naming make sense anymore?
     }
 
