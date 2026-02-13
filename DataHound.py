@@ -332,7 +332,7 @@ def transform_edge(input_object: pd.DataFrame, config: dict):
     source_col = config['source_column']
     target_col = config['target_column']
     
-    # 1. Materialize dotted paths (Keep this - it handles your nested JSON lookups)
+    # Materialize dotted paths
     source_paths = set(column_mapping.keys()) | {source_col, target_col}
     for path in source_paths:
         if ('.' in path) or (path not in df.columns):
@@ -343,10 +343,10 @@ def transform_edge(input_object: pd.DataFrame, config: dict):
     if config.get('target_is_multi_valued', False):
         df = df.explode(target_col)
     
-    # 2. Filter out nulls
+    # Filter out nulls
     df = df[df[target_col].notnull() & df[source_col].notnull()]
 
-    # 3. Resolve edge data in a single pass (The "Simple" way)
+    # Resolve edge data in a single pass
     edge_type = config.get('edge_type')
     edge_col_id = config.get('edge_column_id')
     edge_name = config.get('edge_name', 'RELATED_TO')

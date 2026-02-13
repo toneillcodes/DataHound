@@ -1,0 +1,142 @@
+{
+    "metadata": {
+        "source_kind": "Arrows"
+    },
+    "graph": {
+        "nodes": [
+            {
+                "id": "n0",
+                "kinds": [
+                    "IAMLDAP",
+                    "Arrows"
+                ],
+                "properties": {
+                    "id": "n0",
+                    "name": "LDAP"
+                }
+            },
+            {
+                "id": "n1",
+                "kinds": [
+                    "IAMIdentityProvider",
+                    "Arrows"
+                ],
+                "properties": {
+                    "id": "n1",
+                    "name": "Shibboleth "
+                }
+            },
+            {
+                "id": "n2",
+                "kinds": [
+                    "IAMIdentityProvider",
+                    "Arrows"
+                ],
+                "properties": {
+                    "id": "n2",
+                    "name": "Entra ID"
+                }
+            },
+            {
+                "id": "n3",
+                "kinds": [
+                    "IAMServiceProvider",
+                    "Arrows"
+                ],
+                "properties": {
+                    "id": "n3",
+                    "name": "9SSB"
+                }
+            },
+            {
+                "id": "n4",
+                "kinds": [
+                    "IAMServiceProvider",
+                    "Arrows"
+                ],
+                "properties": {
+                    "id": "n4",
+                    "name": "Admin Pages"
+                }
+            },
+            {
+                "id": "n5",
+                "kinds": [
+                    "IAMPortal",
+                    "Arrows"
+                ],
+                "properties": {
+                    "id": "n5",
+                    "name": "Pathify"
+                }
+            },
+            {
+                "id": "n6",
+                "kinds": [
+                    "IAMPortal",
+                    "Arrows"
+                ],
+                "properties": {
+                    "id": "n6",
+                    "name": "Experience"
+                }
+            }
+        ],
+        "edges": [
+            {
+                "kind": "UsesSAML2",
+                "start": {
+                    "value": "n3"
+                },
+                "end": {
+                    "value": "n2"
+                }
+            },
+            {
+                "kind": "UsesCAS",
+                "start": {
+                    "value": "n4"
+                },
+                "end": {
+                    "value": "n1"
+                }
+            },
+            {
+                "kind": "AuthenticatesFrom",
+                "start": {
+                    "value": "n1"
+                },
+                "end": {
+                    "value": "n0"
+                }
+            },
+            {
+                "kind": "UsesSAML2",
+                "start": {
+                    "value": "n5"
+                },
+                "end": {
+                    "value": "n1"
+                }
+            },
+            {
+                "kind": "UsesSAML2",
+                "start": {
+                    "value": "n6"
+                },
+                "end": {
+                    "value": "n2"
+                }
+            },
+            {
+                "kind": "UsesSAML2",
+                "start": {
+                    "value": "n1"
+                },
+                "end": {
+                    "value": "n2"
+                }
+            }
+        ]
+    }
+}

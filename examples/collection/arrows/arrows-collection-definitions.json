@@ -1,0 +1,33 @@
+[ 
+    {
+        "item_type": "node",
+        "item_name": "Nodes",
+        "item_description": "Nodes found in the arrow diagram",
+        "source_type": "arrows_nodes",
+        "source_path": "arrows-input.json",
+        "column_mapping": {
+            "id": "id",
+			"caption": "name"
+        },
+        "output_columns": [            
+            "id",
+            "name"
+        ],
+        "id_location": "id",        		
+        "item_kind_type": "from_column",
+		"item_kind_column_id": "properties.kind",
+		"source_name": "arrows-nodes"
+    },
+    {
+        "item_type": "edge",
+        "item_name": "Edges",
+        "item_description": "Edges found in the arrow diagram",
+        "source_type": "arrows_edges",
+        "source_path": "arrows-input.json",
+        "edge_type": "from_column",
+		"edge_column_id": "type",
+        "source_column": "fromId",
+        "target_column": "toId",        
+		"source_name": "arrows-edges"
+    }	
+]
