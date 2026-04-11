@@ -7,6 +7,7 @@ import pandas as pd
 import requests
 import getpass
 import logging
+import uuid
 
 from . import core
 
